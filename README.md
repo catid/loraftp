@@ -48,10 +48,13 @@ This will place the file in the same folder as the server.
 
 ## Protocol
 
+The client first compresses the file using Zstd to make sure that it is as small as possible.
+
 The client and server both configure the radio for the highest performance bandwidth mode.
 
 Before starting, both server and client check all 84 channels for noise power.
 The HAT supports 84 channels: 850.125 + (channel * 1MHz).  Recall that LoRa uses 500 kHz spectrum bandwidth.
+
 
 #### Client => Server OFFER (Packet # 0, 90+X bytes):
 
