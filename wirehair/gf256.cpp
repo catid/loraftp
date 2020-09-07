@@ -803,9 +803,9 @@ extern "C" void gf256_add_mem(void * GF256_RESTRICT vx,
     const int offset = eight + four;
     switch (bytes & 3)
     {
-    case 3: x1[offset + 2] ^= y1[offset + 2];
-    case 2: x1[offset + 1] ^= y1[offset + 1];
-    case 1: x1[offset] ^= y1[offset];
+    case 3: x1[offset + 2] ^= y1[offset + 2]; // fall-thru
+    case 2: x1[offset + 1] ^= y1[offset + 1]; // fall-thru
+    case 1: x1[offset] ^= y1[offset]; // fall-thru
     default:
         break;
     }
@@ -923,9 +923,9 @@ extern "C" void gf256_add2_mem(void * GF256_RESTRICT vz, const void * GF256_REST
     const int offset = eight + four;
     switch (bytes & 3)
     {
-    case 3: z1[offset + 2] ^= x1[offset + 2] ^ y1[offset + 2];
-    case 2: z1[offset + 1] ^= x1[offset + 1] ^ y1[offset + 1];
-    case 1: z1[offset] ^= x1[offset] ^ y1[offset];
+    case 3: z1[offset + 2] ^= x1[offset + 2] ^ y1[offset + 2]; // fall-thru
+    case 2: z1[offset + 1] ^= x1[offset + 1] ^ y1[offset + 1]; // fall-thru
+    case 1: z1[offset] ^= x1[offset] ^ y1[offset]; // fall-thru
     default:
         break;
     }
@@ -1078,9 +1078,9 @@ extern "C" void gf256_addset_mem(void * GF256_RESTRICT vz, const void * GF256_RE
     const int offset = eight + four;
     switch (bytes & 3)
     {
-    case 3: z1[offset + 2] = x1[offset + 2] ^ y1[offset + 2];
-    case 2: z1[offset + 1] = x1[offset + 1] ^ y1[offset + 1];
-    case 1: z1[offset] = x1[offset] ^ y1[offset];
+    case 3: z1[offset + 2] = x1[offset + 2] ^ y1[offset + 2]; // fall-thru
+    case 2: z1[offset + 1] = x1[offset + 1] ^ y1[offset + 1]; // fall-thru
+    case 1: z1[offset] = x1[offset] ^ y1[offset]; // fall-thru
     default:
         break;
     }
@@ -1224,9 +1224,9 @@ extern "C" void gf256_mul_mem(void * GF256_RESTRICT vz, const void * GF256_RESTR
     const int offset = four;
     switch (bytes & 3)
     {
-    case 3: z1[offset + 2] = table[x1[offset + 2]];
-    case 2: z1[offset + 1] = table[x1[offset + 1]];
-    case 1: z1[offset] = table[x1[offset]];
+    case 3: z1[offset + 2] = table[x1[offset + 2]]; // fall-thru
+    case 2: z1[offset + 1] = table[x1[offset + 1]]; // fall-thru
+    case 1: z1[offset] = table[x1[offset]]; // fall-thru
     default:
         break;
     }
@@ -1435,9 +1435,9 @@ extern "C" void gf256_muladd_mem(void * GF256_RESTRICT vz, uint8_t y,
     const int offset = four;
     switch (bytes & 3)
     {
-    case 3: z1[offset + 2] ^= table[x1[offset + 2]];
-    case 2: z1[offset + 1] ^= table[x1[offset + 1]];
-    case 1: z1[offset] ^= table[x1[offset]];
+    case 3: z1[offset + 2] ^= table[x1[offset + 2]]; // fall-thru
+    case 2: z1[offset + 1] ^= table[x1[offset + 1]]; // fall-thru
+    case 1: z1[offset] ^= table[x1[offset]]; // fall-thru
     default:
         break;
     }
@@ -1507,9 +1507,9 @@ extern "C" void gf256_memswap(void * GF256_RESTRICT vx, void * GF256_RESTRICT vy
     uint8_t temp;
     switch (bytes & 3)
     {
-    case 3: temp = x1[offset + 2]; x1[offset + 2] = y1[offset + 2]; y1[offset + 2] = temp;
-    case 2: temp = x1[offset + 1]; x1[offset + 1] = y1[offset + 1]; y1[offset + 1] = temp;
-    case 1: temp = x1[offset]; x1[offset] = y1[offset]; y1[offset] = temp;
+    case 3: temp = x1[offset + 2]; x1[offset + 2] = y1[offset + 2]; y1[offset + 2] = temp; // fall-thru
+    case 2: temp = x1[offset + 1]; x1[offset + 1] = y1[offset + 1]; y1[offset + 1] = temp; // fall-thru
+    case 1: temp = x1[offset]; x1[offset] = y1[offset]; y1[offset] = temp; // fall-thru
     default:
         break;
     }
