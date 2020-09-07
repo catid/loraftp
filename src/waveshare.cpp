@@ -84,7 +84,7 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
 
     fd = serialOpen("/dev/ttyS0", 9600);
     if (-1 == fd) {
-        cerr << "serialOpen failed" << endl;
+        cerr << "serialOpen 9600 failed" << endl;
         return false;
     }
 
@@ -108,6 +108,14 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
 
     digitalWrite(kM1, LOW);
 
+    serialClose(fd);
+
+    fd = serialOpen("/dev/ttyS0", 115200);
+    if (-1 == fd) {
+        cerr << "serialOpen 115200 failed" << endl;
+        return false;
+    }
+
     return true;
 }
 
@@ -117,6 +125,33 @@ void Waveshare::Shutdown()
         serialClose(fd);
         fd = -1;
     }
+}
+
+void Waveshare::Send(const uint8_t* data, int bytes)
+{
+    serialWrite(fd, data, bytes);
+}
+
+int Waveshare::Receive(uint8_t* buffer, int buffer_bytes)
+{
+    int bytes = serialDataAvail(fd);
+    if (bytes <= 0) {
+        return bytes;
+    }
+
+    if (bytes > buffer_bytes) {
+        bytes = buffer_bytes;
+    }
+
+    for (int i = 0; i < bytes; ++i) {
+        const int r = serialGetchar(fd);
+        if (r < 0) {
+            return r;
+        }
+        buffer[i] = (uint8_t)r;
+    }
+
+    return bytes;
 }
 
 
