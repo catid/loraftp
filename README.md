@@ -1,3 +1,5 @@
+# This is a work in progress (doesn't work yet)
+
 # LoRa FTP
 
 File transfer between two Raspberry Pis using the LoRa Pi HAT from Waveshare.
