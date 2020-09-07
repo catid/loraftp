@@ -62,13 +62,16 @@ enable_testing()
 
 add_library(loraftp STATIC
     include/loraftp.hpp
+    include/waveshare.hpp
     src/loraftp.cpp
+    src/waveshare.cpp
 )
 target_include_directories(loraftp PUBLIC
     include
 )
 target_link_libraries(loraftp
     PUBLIC
+        wiringPi
         wirehair
         zstd
 )
@@ -103,3 +106,17 @@ target_link_libraries(loraftp_server
 
 set_target_properties(loraftp_server PROPERTIES INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 install(TARGETS loraftp_server DESTINATION bin)
+
+
+# App: echo_test
+
+add_executable(echo_test
+    test/echo_test.cpp
+)
+target_link_libraries(echo_test
+    PUBLIC
+        loraftp
+)
+
+set_target_properties(echo_test PROPERTIES INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+install(TARGETS echo_test DESTINATION bin)
