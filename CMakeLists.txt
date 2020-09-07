@@ -49,6 +49,8 @@ target_include_directories(zstd PUBLIC
     zstd_lib
 )
 
+add_subdirectory(wirehair)
+
 
 ################################################################################
 # Targets
@@ -67,6 +69,7 @@ target_include_directories(loraftp PUBLIC
 )
 target_link_libraries(loraftp
     PUBLIC
+        wirehair
         zstd
 )
 
