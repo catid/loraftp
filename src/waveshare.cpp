@@ -57,10 +57,12 @@ static bool waveshareConfig(int fd, int offset, const uint8_t* data, int bytes)
         uint64_t t1 = GetTimeMsec();
         int64_t dt = t1 - t0;
 
-        if (dt > 1000) {
+        if (dt > 5000) {
             cerr << "timeout waiting for config result" << endl;
             return false;
         }
+
+        this_thread::sleep_for(chrono::milliseconds(10));
     }
 
     uint8_t readback[256];
