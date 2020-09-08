@@ -5,7 +5,13 @@
 #include <wiringPi.h>
 #include <wiringSerial.h>
 
+#include <termios.h>
+
 #include <iostream>
+#include <thread>
+#include <chrono>
+#include <unistd.h>
+#include <cstring>
 using namespace std;
 
 namespace lora {
@@ -26,45 +32,52 @@ static const uint8_t kKeyLo = 0x00;
 //------------------------------------------------------------------------------
 // Waveshare HAT API
 
-static void serialWrite(int fd, const uint8_t* data, int bytes)
-{
-    for (int i = 0; i < bytes; ++i) {
-        serialPutchar(fd, data[i]);
-    }
-}
-
 static bool waveshareConfig(int fd, int offset, const uint8_t* data, int bytes)
 {
-    serialPutchar(fd, 0xc2);
-    serialPutchar(fd, (uint8_t)offset);
-    serialPutchar(fd, (uint8_t)bytes);
-
-    serialWrite(fd, data, bytes);
-
-    int r = serialGetchar(fd);
-    if (r != 0xc1) {
-        cerr << "serialGetchar: failed response not 0xc1 actual=" << r << endl;
-        return false;
-    }
-    r = serialGetchar(fd);
-    if (r != (uint8_t)offset) {
-        cerr << "serialGetchar: incorrect at offset 1" << endl;
-        return false;
-    }
-    r = serialGetchar(fd);
-    if (r != (uint8_t)bytes) {
-        cerr << "serialGetchar: incorrect at offset 2" << endl;
+    if (bytes >= 240) {
+        cerr << "invalid config len" << endl;
         return false;
     }
 
-    for (int i = 0; i < bytes; ++i) {
-        r = serialGetchar(fd);
+    uint8_t buffer[256];
+    buffer[0] = 0xc2;
+    buffer[1] = (uint8_t)offset;
+    buffer[2] = (uint8_t)bytes;
+    memcpy(buffer + 3, data, bytes);
 
-        if (r != data[i]) {
-            cerr << "serialGetchar: incorrect at offset " << i <<
-                " expected=" << (int)data[i] << " actual=" << r << endl;
+    ssize_t r = write(fd, buffer, 3 + bytes);
+    if (r < 0) {
+        cerr << "write failed: r=" << r << endl;
+        return false;
+    }
+
+    uint64_t t0 = GetTimeMsec();
+
+    while (serialDataAvail(fd) < 3 + bytes) {
+        uint64_t t1 = GetTimeMsec();
+        int64_t dt = t1 - t0;
+
+        if (dt > 1000) {
+            cerr << "timeout waiting for config result" << endl;
             return false;
         }
+    }
+
+    uint8_t readback[256];
+    r = read(fd, readback, 3 + bytes);
+    if (r != 3 + bytes) {
+        cerr << "read failed: r=" << r << endl;
+        return false;
+    }
+
+    if (readback[0] != 0xc1) {
+        cerr << "failed response not 0xc1 actual=" << r << endl;
+        return false;
+    }
+
+    if (0 != memcmp(readback + 1, buffer + 1, 2 + bytes)) {
+        cerr << "readback did not match config" << endl;
+        return false;
     }
 
     return true;
@@ -72,6 +85,8 @@ static bool waveshareConfig(int fd, int offset, const uint8_t* data, int bytes)
 
 bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
 {
+    cout << "Entering config mode..." << endl;
+
     if (-1 == wiringPiSetupGpio()) {
         cerr << "wiringPiSetupGpio failed.  May need to run as root" << endl;
         return false;
@@ -82,13 +97,40 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
     digitalWrite(kM0, LOW);
     digitalWrite(kM1, HIGH);
 
+    this_thread::sleep_for(chrono::milliseconds(1000));
+
+    cout << "Opening serial port..." << endl;
+
     fd = serialOpen("/dev/ttyS0", 9600);
     if (-1 == fd) {
         cerr << "serialOpen 9600 failed" << endl;
         return false;
     }
 
+    struct termios options{};
+    tcgetattr(fd, &options);
+
+    //cfmakeraw(&options);
+    //cfsetspeed(&options, B9600);
+
+    options.c_cflag |= IGNPAR;
+
+    options.c_oflag &= ~(PARENB | PARODD | CMSPAR);
+    options.c_oflag &= ~(OPOST | ONLCR | OCRNL);
+
+    options.c_iflag &= ~(INLCR | IGNCR | ICRNL | IGNBRK);
+    options.c_iflag &= ~(IUCLC);
+    options.c_iflag &= ~(PARMRK);
+    options.c_iflag &= ~(INPCK | ISTRIP);
+    options.c_iflag &= ~(IXON | IXOFF | IXANY);
+    options.c_iflag &= ~(CRTSCTS);
+
+    options.c_cc[VTIME] = 10; // 1 second timeout
+
     serialFlush(fd);
+    tcsetattr(fd, TCSANOW, &options);
+
+    cout << "Configuring Waveshare HAT..." << endl;
 
     // Documentation here: https://www.waveshare.com/wiki/SX1262_915M_LoRa_HAT
     const int config_bytes = 9;
@@ -108,7 +150,11 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
         return false;
     }
 
+    cout << "Entering transmit mode..." << endl;
+
     digitalWrite(kM1, LOW);
+
+    this_thread::sleep_for(chrono::milliseconds(1000));
 
 #if 0
     serialClose(fd);
@@ -119,6 +165,8 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
         return false;
     }
 #endif
+
+    cout << "LoRa radio ready." << endl;
 
     return true;
 }
@@ -133,7 +181,10 @@ void Waveshare::Shutdown()
 
 void Waveshare::Send(const uint8_t* data, int bytes)
 {
-    serialWrite(fd, data, bytes);
+    int r = write(fd, data, bytes);
+    if (r != bytes) {
+        cerr << "write error: r=" << r << endl;
+    }
 }
 
 int Waveshare::Receive(uint8_t* buffer, int buffer_bytes)
@@ -147,12 +198,10 @@ int Waveshare::Receive(uint8_t* buffer, int buffer_bytes)
         bytes = buffer_bytes;
     }
 
-    for (int i = 0; i < bytes; ++i) {
-        const int r = serialGetchar(fd);
-        if (r < 0) {
-            return r;
-        }
-        buffer[i] = (uint8_t)r;
+    int r = read(fd, buffer, bytes);
+    if (r != bytes) {
+        cerr << "read error: r=" << r << endl;
+        return -1;
     }
 
     return bytes;

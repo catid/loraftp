@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <stdint.h>
+#include "tools.hpp"
 
 namespace lora {
 
