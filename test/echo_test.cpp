@@ -32,7 +32,7 @@ int main(int argc, char* argv[])
 
     Waveshare waveshare;
 
-    const int channel = 0;
+    const int channel = 0x17;
 
     if (!waveshare.Initialize(channel, (uint16_t)id)) {
         cerr << "Failed to initialize";

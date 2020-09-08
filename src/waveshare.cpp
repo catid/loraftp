@@ -32,6 +32,18 @@ static const uint8_t kKeyLo = 0x00;
 //------------------------------------------------------------------------------
 // Waveshare HAT API
 
+static bool writeIndividually(int fd, const uint8_t* data, int bytes)
+{
+    for (int i = 0; i < bytes; ++i) {
+        ssize_t r = write(fd, data + i, 1);
+        if (r != 1) {
+            cerr << "write fail at offset " << i << endl;
+            return false;
+        }
+    }
+    return true;
+}
+
 static bool waveshareConfig(int fd, int offset, const uint8_t* data, int bytes)
 {
     if (bytes >= 240) {
@@ -45,11 +57,17 @@ static bool waveshareConfig(int fd, int offset, const uint8_t* data, int bytes)
     buffer[2] = (uint8_t)bytes;
     memcpy(buffer + 3, data, bytes);
 
+#if 1
     ssize_t r = write(fd, buffer, 3 + bytes);
     if (r < 0) {
         cerr << "write failed: r=" << r << endl;
         return false;
     }
+#else
+    if (!writeIndividually(fd, buffer, 3 + bytes)) {
+        return false;
+    }
+#endif
 
     uint64_t t0 = GetTimeMsec();
 
@@ -108,6 +126,7 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
         cerr << "serialOpen 9600 failed" << endl;
         return false;
     }
+    serialFlush(fd);
 
     struct termios options{};
     tcgetattr(fd, &options);
@@ -115,7 +134,7 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
     //cfmakeraw(&options);
     //cfsetspeed(&options, B9600);
 
-    options.c_cflag |= IGNPAR;
+    //options.c_cflag |= IGNPAR;
 
     options.c_oflag &= ~(PARENB | PARODD | CMSPAR);
     options.c_oflag &= ~(OPOST | ONLCR | OCRNL);
@@ -126,6 +145,8 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
     options.c_iflag &= ~(INPCK | ISTRIP);
     options.c_iflag &= ~(IXON | IXOFF | IXANY);
     options.c_iflag &= ~(CRTSCTS);
+
+    options.c_lflag = ICANON;
 
     options.c_cc[VTIME] = 10; // 1 second timeout
 
