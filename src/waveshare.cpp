@@ -93,8 +93,8 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
     const uint8_t config[config_bytes] = {
         (uint8_t)(addr >> 8), (uint8_t)addr,
         kNetId,
-        0xe7, /* 111 00 111 : Baud rate 115200, 8N1 Parity, Air speed 62.5K */
-        0x20, /* 00 1 000 00 : 240 Bytes, Enable ambient noise, 22 dBm power */
+        0x67, /* 011 00 111 : Baud rate 9600, 8N1 Parity, Air speed 62.5K */
+        0x00, /* 00 0 000 00 : 240 Bytes, ambient noise, 22 dBm power */
         (uint8_t)channel,
         (uint8_t)(0x80 | (lbt ? 0x10 : 0)), /* 1 0 0 L 0 000 : Enable RSSI byte... */
         kKeyHi,
@@ -108,6 +108,7 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
 
     digitalWrite(kM1, LOW);
 
+#if 0
     serialClose(fd);
 
     fd = serialOpen("/dev/ttyS0", 115200);
@@ -115,6 +116,7 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
         cerr << "serialOpen 115200 failed" << endl;
         return false;
     }
+#endif
 
     return true;
 }
