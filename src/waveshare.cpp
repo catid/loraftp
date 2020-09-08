@@ -96,7 +96,7 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
         0x67, /* 011 00 111 : Baud rate 9600, 8N1 Parity, Air speed 62.5K */
         0x00, /* 00 0 000 00 : 240 Bytes, ambient noise, 22 dBm power */
         (uint8_t)channel,
-        (uint8_t)(0x80 | (lbt ? 0x10 : 0)), /* 1 0 0 L 0 000 : Enable RSSI byte... */
+        (uint8_t)(0x00 | (lbt ? 0x10 : 0)), /* 0 0 0 L 0 000 : Enable RSSI byte... */
         kKeyHi,
         kKeyLo
     };
