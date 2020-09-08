@@ -58,7 +58,7 @@ static bool waveshareConfig(int fd, int offset, const uint8_t* data, int bytes)
         int64_t dt = t1 - t0;
 
         if (dt > 5000) {
-            cerr << "timeout waiting for config result" << endl;
+            cerr << "timeout waiting for config result avail=" << serialDataAvail(fd) << endl;
             return false;
         }
 
