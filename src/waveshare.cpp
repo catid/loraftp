@@ -88,6 +88,8 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
         return false;
     }
 
+    serialFlush(fd);
+
     // Documentation here: https://www.waveshare.com/wiki/SX1262_915M_LoRa_HAT
     const int config_bytes = 9;
     const uint8_t config[config_bytes] = {
