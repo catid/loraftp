@@ -17,10 +17,10 @@ namespace lora {
 static const int kM0 = 22; // BCM GPIO
 static const int kM1 = 27; // BCM GPIO
 
-static const uint8_t kNetId = 0xad;
+static const uint8_t kNetId = 0x00;
 
-static const uint8_t kKeyHi = 0x06;
-static const uint8_t kKeyLo = 0x07;
+static const uint8_t kKeyHi = 0x00;
+static const uint8_t kKeyLo = 0x00;
 
 
 //------------------------------------------------------------------------------
@@ -35,7 +35,7 @@ static void serialWrite(int fd, const uint8_t* data, int bytes)
 
 static bool waveshareConfig(int fd, int offset, const uint8_t* data, int bytes)
 {
-    serialPutchar(fd, 0xc0);
+    serialPutchar(fd, 0xc2);
     serialPutchar(fd, (uint8_t)offset);
     serialPutchar(fd, (uint8_t)bytes);
 
@@ -93,10 +93,10 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
     const uint8_t config[config_bytes] = {
         (uint8_t)(addr >> 8), (uint8_t)addr,
         kNetId,
-        0x67, /* 011 00 111 : Baud rate 9600, 8N1 Parity, Air speed 62.5K */
+        0x62, /* 011 00 111 : Baud rate 9600, 8N1 Parity, Air speed 62.5K */
         0x00, /* 00 0 000 00 : 240 Bytes, ambient noise, 22 dBm power */
         (uint8_t)channel,
-        (uint8_t)(0x00 | (lbt ? 0x10 : 0)), /* 0 0 0 L 0 000 : Enable RSSI byte... */
+        (uint8_t)(0x03 | (lbt ? 0x10 : 0)), /* 0 0 0 L 0 000 : Enable RSSI byte... */
         kKeyHi,
         kKeyLo
     };

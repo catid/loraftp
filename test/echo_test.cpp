@@ -103,7 +103,7 @@ int main(int argc, char* argv[])
 
     Waveshare waveshare;
 
-    const int channel = 0;
+    const int channel = 0x17;
 
     if (!waveshare.Initialize(channel)) {
         cerr << "Failed to initialize";
@@ -116,7 +116,7 @@ int main(int argc, char* argv[])
 
     while (!Terminated)
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
         uint64_t t1 = GetTimeUsec();
         int64_t dt = t1 - t0;
@@ -136,7 +136,11 @@ int main(int argc, char* argv[])
             break;
         }
         if (bytes > 0) {
-            cout << "Got bytes: " << bytes << endl;
+            cout << "Got bytes:";
+            for (int i = 0; i < bytes; ++i) {
+                cout << " " << (int)buffer[i];
+            }
+            cout << endl;
         }
     }
 
