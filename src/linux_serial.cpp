@@ -158,12 +158,12 @@ int RawSerialPort::GetAvailable()
 {
     int result = 0;
     int r = ioctl(fd, FIONREAD, &result);
-    if (r < 0) {
-        cerr << "FIONREAD failed: errno=" << errno << endl;
+    if (r != 0) {
+        cerr << "FIONREAD failed: r=" << r << " errno=" << errno << endl;
         return -1;
     }
 
-    return r;
+    return result;
 }
 
 int RawSerialPort::Read(void* data, int bytes)

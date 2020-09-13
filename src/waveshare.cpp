@@ -80,11 +80,11 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
     gpioWrite(kM0, 0);
     gpioWrite(kM1, 0);
 
-    usleep(500000);
+    usleep(1000000);
 
     gpioWrite(kM1, 1);
 
-    usleep(500000);
+    usleep(1000000);
 
     cout << "Opening serial port..." << endl;
 
@@ -109,7 +109,7 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
     };
 
     if (!WriteConfig(0, config, config_bytes)) {
-        cerr << "Serial.Config failed" << endl;
+        cerr << "WriteConfig failed" << endl;
         return false;
     }
 
@@ -122,7 +122,7 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
 
     gpioWrite(kM1, 0);
 
-    usleep(500000);
+    usleep(1000000);
 
     cout << "Opening serial port..." << endl;
 
