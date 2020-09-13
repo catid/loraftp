@@ -22,6 +22,19 @@ Configure the DIP switches as shown here:
 
 ![alt text](https://github.com/catid/loraftp/raw/master/docs/waveshare_dips.jpg "DIP switch settings for LoRa HAT")
 
+Install the bcm2835 library from http://www.airspayce.com/mikem/bcm2835/
+
+```
+    sudo apt install wget
+    wget http://www.airspayce.com/mikem/bcm2835/bcm2835-1.68.tar.gz
+    tar vzxf bcm2835-1.68.tar.gz
+    cd bcm2835
+    ./configure
+    make -j
+    sudo make install
+    cd ~
+```
+
 Clone the repo on both devices and build it:
 
 ```

@@ -73,7 +73,7 @@ target_include_directories(loraftp PUBLIC
 )
 target_link_libraries(loraftp
     PUBLIC
-        wiringPi
+        bcm2835
         wirehair
         zstd
 )

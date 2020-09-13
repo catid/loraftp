@@ -2,8 +2,7 @@
 
 #include "waveshare.hpp"
 
-#include <wiringPi.h>
-#include <wiringSerial.h>
+#include "bcm2835.h"
 
 #include <termios.h>
 
@@ -20,9 +19,6 @@ namespace lora {
 //------------------------------------------------------------------------------
 // Constants
 
-static const int kM0 = 22; // BCM GPIO
-static const int kM1 = 27; // BCM GPIO
-
 static const uint8_t kNetId = 0x00;
 
 static const uint8_t kKeyHi = 0x00;
@@ -31,18 +27,6 @@ static const uint8_t kKeyLo = 0x00;
 
 //------------------------------------------------------------------------------
 // Waveshare HAT API
-
-static bool writeIndividually(int fd, const uint8_t* data, int bytes)
-{
-    for (int i = 0; i < bytes; ++i) {
-        ssize_t r = write(fd, data + i, 1);
-        if (r != 1) {
-            cerr << "write fail at offset " << i << endl;
-            return false;
-        }
-    }
-    return true;
-}
 
 static bool waveshareConfig(int fd, int offset, const uint8_t* data, int bytes)
 {
@@ -57,17 +41,11 @@ static bool waveshareConfig(int fd, int offset, const uint8_t* data, int bytes)
     buffer[2] = (uint8_t)bytes;
     memcpy(buffer + 3, data, bytes);
 
-#if 1
     ssize_t r = write(fd, buffer, 3 + bytes);
     if (r < 0) {
         cerr << "write failed: r=" << r << endl;
         return false;
     }
-#else
-    if (!writeIndividually(fd, buffer, 3 + bytes)) {
-        return false;
-    }
-#endif
 
     uint64_t t0 = GetTimeMsec();
 
@@ -107,15 +85,15 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
 {
     cout << "Entering config mode..." << endl;
 
-    if (-1 == wiringPiSetupGpio()) {
-        cerr << "wiringPiSetupGpio failed.  May need to run as root" << endl;
+    if (-1 == wiringPiSetup()) {
+        cerr << "wiringPiSetup failed.  May need to run as root" << endl;
         return false;
     }
 
-    pinMode(kM0, OUTPUT);
-    pinMode(kM1, OUTPUT);
-    digitalWrite(kM0, LOW);
-    digitalWrite(kM1, HIGH);
+    bcm2835_gpio_fsel(RPI_V2_GPIO_P1_13, BCM2835_GPIO_FSEL_OUTP);
+    bcm2835_gpio_fsel(RPI_V2_GPIO_P1_15, BCM2835_GPIO_FSEL_OUTP);
+    bcm2835_gpio_write(RPI_V2_GPIO_P1_13, LOW);
+    bcm2835_gpio_write(RPI_V2_GPIO_P1_15, HIGH);
 
     this_thread::sleep_for(chrono::milliseconds(1000));
 
@@ -175,7 +153,7 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
 
     cout << "Entering transmit mode..." << endl;
 
-    digitalWrite(kM1, LOW);
+    digitalWrite(2, LOW);
 
     this_thread::sleep_for(chrono::milliseconds(1000));
 
