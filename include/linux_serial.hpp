@@ -32,7 +32,7 @@ public:
     }
 
     // Returns true for success and false for failure.
-    bool Initialize(const std::string& port_file, int baudrate);
+    bool Initialize(const char* port_file, int baudrate);
     void Shutdown();
 
     void Flush();

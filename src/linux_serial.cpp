@@ -61,12 +61,9 @@ int BaudrateToBaud(int baudrate)
 //------------------------------------------------------------------------------
 // RawSerialPort
 
-bool RawSerialPort::Initialize(const std::string& port_file, int baudrate)
+bool RawSerialPort::Initialize(const char* port_file, int baudrate)
 {
-    if (port_file.empty()) {
-        cerr << "empty file";
-        return false;
-    }
+    Shutdown();
 
     int baud = BaudrateToBaud(baudrate);
     if (baud < 0) {
@@ -74,7 +71,7 @@ bool RawSerialPort::Initialize(const std::string& port_file, int baudrate)
         return false;
     }
 
-    fd = open(port_file.c_str(), O_RDWR | O_NOCTTY | O_NDELAY | O_NONBLOCK);
+    fd = open(port_file, O_RDWR | O_NOCTTY | O_NDELAY | O_NONBLOCK);
     if (fd < 0) {
         cerr << "Unable to open serial port: " << port_file << endl;
         return -1;
@@ -94,8 +91,18 @@ bool RawSerialPort::Initialize(const std::string& port_file, int baudrate)
     options.c_cflag &= ~CSTOPB;
     options.c_cflag &= ~CSIZE;
     options.c_cflag |= CS8;
+
+    options.c_oflag &= ~(PARENB | PARODD | CMSPAR);
+    options.c_oflag &= ~(OPOST | ONLCR | OCRNL);
+
+    options.c_iflag &= ~(INLCR | IGNCR | ICRNL | IGNBRK);
+    options.c_iflag &= ~(IUCLC);
+    options.c_iflag &= ~(PARMRK);
+    options.c_iflag &= ~(INPCK | ISTRIP);
+    options.c_iflag &= ~(IXON | IXOFF | IXANY);
+    options.c_iflag &= ~(CRTSCTS);
+
     options.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
-    options.c_oflag &= ~OPOST;
 
     const int operation_timeout_msec = 5000; // 5 seconds
 
@@ -106,6 +113,7 @@ bool RawSerialPort::Initialize(const std::string& port_file, int baudrate)
 
     tcsetattr(fd, TCSANOW, &options);
 
+    int status = 0;
     ioctl(fd, TIOCMGET, &status);
 
     status |= TIOCM_DTR;
@@ -146,6 +154,7 @@ bool RawSerialPort::Write(const void* data, int bytes)
 
 int RawSerialPort::GetAvailable()
 {
+    int result = 0;
     int r = ioctl(fd, FIONREAD, &result);
     if (r < 0) {
         cerr << "FIONREAD failed: errno=" << errno << endl;

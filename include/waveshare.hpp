@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tools.hpp"
+#include "linux_serial.hpp"
 
 namespace lora {
 
@@ -37,7 +38,7 @@ public:
     void Shutdown();
 
     // Send up to 240 bytes at a time
-    void Send(const uint8_t* data, int bytes);
+    bool Send(const uint8_t* data, int bytes);
 
     // Returns -1 on error
     // Returns 0 if no data
@@ -45,7 +46,9 @@ public:
     int Receive(uint8_t* buffer, int buffer_bytes);
 
 protected:
-    int fd = -1;
+    RawSerialPort Serial;
+
+    bool WriteConfig(int offset, const uint8_t* data, int bytes);
 };
 
 

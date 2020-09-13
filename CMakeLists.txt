@@ -63,9 +63,11 @@ enable_testing()
 add_library(loraftp STATIC
     include/loraftp.hpp
     include/waveshare.hpp
+    include/linux_serial.hpp
     include/tools.hpp
     src/loraftp.cpp
     src/waveshare.cpp
+    src/linux_serial.cpp
     src/tools.cpp
 )
 target_include_directories(loraftp PUBLIC
