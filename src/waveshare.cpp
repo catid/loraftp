@@ -2,16 +2,23 @@
 
 #include "waveshare.hpp"
 
-// If this header is missing, download, build and install from:
-// https://www.airspayce.com/mikem/bcm2835/
-// Detailed instructions in the README.md
-#include <bcm2835.h> // Must be installed system-wide
+/*
+    Getting the GPIOs to work was a pain on Raspberry Pi 4B.
+
+    WiringPi is silently deprecated and no longer works with Raspberry Pi 4.
+    The bcm2835 and pigpio libraries both seem to work,
+    but bcm2835 you have to download and manually install,
+    while pigpio is installed by default on RPi.
+*/
+
+#include <pigpio.h> // sudo apt install pigpio
 
 #include <iostream>
 #include <thread>
 #include <chrono>
 #include <unistd.h>
 #include <cstring>
+#include <functional>
 using namespace std;
 
 namespace lora {
@@ -20,10 +27,37 @@ namespace lora {
 //------------------------------------------------------------------------------
 // Constants
 
+static const char* kSerialDevice = "/dev/ttyS0";
+
+static const uint8_t kM0 = 22;
+static const uint8_t kM1 = 27;
+
 static const uint8_t kNetId = 0x00;
 
 static const uint8_t kKeyHi = 0x00;
 static const uint8_t kKeyLo = 0x00;
+
+
+//------------------------------------------------------------------------------
+// Tools
+
+/// Calls the provided (lambda) function at the end of the current scope
+class ScopedFunction
+{
+public:
+    ScopedFunction(std::function<void()> func) {
+        Func = func;
+    }
+    ~ScopedFunction() {
+        if (Func) {
+            Func();
+        }
+    }
+    void Cancel() {
+        Func = std::function<void()>();
+    }
+    std::function<void()> Func;
+};
 
 
 //------------------------------------------------------------------------------
@@ -33,21 +67,28 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
 {
     cout << "Entering config mode..." << endl;
 
-    if (!bcm2835_init()) {
-        cerr << "bcm2835_init failed" << endl;
+    if (gpioInitialise() < 0) {
+        cerr << "pigpio init failed" << endl;
         return false;
     }
+    ScopedFunction gpio_scope([]() {
+        gpioTerminate();
+    });
 
-    bcm2835_gpio_fsel(RPI_V2_GPIO_P1_13, BCM2835_GPIO_FSEL_OUTP);
-    bcm2835_gpio_fsel(RPI_V2_GPIO_P1_15, BCM2835_GPIO_FSEL_OUTP);
-    bcm2835_gpio_write(RPI_V2_GPIO_P1_13, LOW);
-    bcm2835_gpio_write(RPI_V2_GPIO_P1_15, HIGH);
+    gpioSetMode(kM0, PI_OUTPUT);
+    gpioSetMode(kM1, PI_OUTPUT);
+    gpioWrite(kM0, 0);
+    gpioWrite(kM1, 0);
 
-    this_thread::sleep_for(chrono::milliseconds(1000));
+    usleep(500000);
+
+    gpioWrite(kM1, 1);
+
+    usleep(500000);
 
     cout << "Opening serial port..." << endl;
 
-    if (!Serial.Initialize("/dev/ttyS0", 9600)) {
+    if (!Serial.Initialize(kSerialDevice, 9600)) {
         cerr << "Failed to open serial port" << endl;
         return false;
     }
@@ -72,15 +113,20 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
         return false;
     }
 
-    cout << "Entering transmit mode..." << endl;
+    cout << "Closing serial port..." << endl;
 
-    bcm2835_gpio_write(RPI_V2_GPIO_P1_15, LOW);
-
+    Serial.Flush();
     Serial.Shutdown();
 
-    this_thread::sleep_for(chrono::milliseconds(1000));
+    cout << "Entering transmit mode..." << endl;
 
-    if (!Serial.Initialize("/dev/ttyS0", 9600)) {
+    gpioWrite(kM1, 0);
+
+    usleep(500000);
+
+    cout << "Opening serial port..." << endl;
+
+    if (!Serial.Initialize(kSerialDevice, 9600)) {
         cerr << "Failed to open serial port" << endl;
         return false;
     }
@@ -125,7 +171,7 @@ bool Waveshare::WriteConfig(int offset, const uint8_t* data, int bytes)
             return false;
         }
 
-        this_thread::sleep_for(chrono::milliseconds(10));
+        usleep(10000);
     }
 
     uint8_t readback[256];

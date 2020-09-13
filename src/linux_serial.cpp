@@ -122,6 +122,8 @@ bool RawSerialPort::Initialize(const char* port_file, int baudrate)
     ioctl(fd, TIOCMSET, &status);
 
     usleep(10000); // 10 msec
+
+    return true;
 }
 
 void RawSerialPort::Shutdown()

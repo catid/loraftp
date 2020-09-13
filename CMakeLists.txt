@@ -75,7 +75,7 @@ target_include_directories(loraftp PUBLIC
 )
 target_link_libraries(loraftp
     PUBLIC
-        bcm2835
+        pigpio
         wirehair
         zstd
 )

@@ -3,6 +3,8 @@
 #include "waveshare.hpp"
 using namespace lora;
 
+#include <unistd.h>
+
 #include <iostream>
 #include <fstream>
 #include <csignal>
@@ -47,7 +49,7 @@ int main(int argc, char* argv[])
 
     while (!Terminated)
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        usleep(100000);
 
         uint64_t t1 = GetTimeUsec();
         int64_t dt = t1 - t0;
