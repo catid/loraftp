@@ -45,7 +45,7 @@ int main(int argc, char* argv[])
 
     uint64_t t0 = GetTimeUsec();
 
-    cout << "Listening...";
+    cout << "Listening..." << endl;
 
     while (!Terminated)
     {

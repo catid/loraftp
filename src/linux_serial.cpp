@@ -128,7 +128,9 @@ void RawSerialPort::Shutdown()
 
 void RawSerialPort::Flush()
 {
-    tcflush(fd, TCIOFLUSH);
+    if (fd != -1) {
+        tcflush(fd, TCIOFLUSH);
+    }
 }
 
 bool RawSerialPort::Write(const void* data, int bytes)
