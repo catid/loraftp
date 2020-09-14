@@ -53,7 +53,6 @@ int main(int argc, char* argv[])
 
         uint64_t t1 = GetTimeMsec();
         int64_t dt = t1 - t0;
-
         if (dt > 1000) {
             cout << "Sent: Ping" << endl;
             uint8_t data[kPacketMaxBytes] = {
@@ -64,7 +63,7 @@ int main(int argc, char* argv[])
         }
 
         uint8_t buffer[kPacketMaxBytes];
-        int bytes = waveshare.Receive(buffer, kPacketMaxBytes);
+        int bytes = waveshare.Receive(buffer, 10 + 1, 10 + 1);
         if (bytes < 0) {
             cerr << "Link broken" << endl;
             break;
@@ -74,7 +73,7 @@ int main(int argc, char* argv[])
             for (int i = 0; i < bytes - 1; ++i) {
                 cout << " " << (int)buffer[i];
             }
-            cout << " at RSSI = " << buffer[bytes - 1] * 0.5f << endl;
+            cout << " at RSSI = " << buffer[bytes - 1] * 0.5f << " dBm" << endl;
         }
     }
 

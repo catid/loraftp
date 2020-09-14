@@ -51,10 +51,10 @@ public:
     // Send up to 240 bytes at a time
     bool Send(const uint8_t* data, int bytes);
 
-    // Returns -1 on error
-    // Returns 0 if no data
+    // Returns -1 on error.
+    // Returns 0 if min_bytes not satisfied.
     // Otherwise returns number of bytes written
-    int Receive(uint8_t* buffer, int buffer_bytes);
+    int Receive(uint8_t* buffer, int buffer_bytes, int min_bytes);
 
     // Scan all channels and read ambient RSSI.
     // After this you must call SetChannel() again because it changes the channel

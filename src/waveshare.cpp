@@ -399,11 +399,11 @@ bool Waveshare::Send(const uint8_t* data, int bytes)
     return Serial.Write(data, bytes);
 }
 
-int Waveshare::Receive(uint8_t* buffer, int buffer_bytes)
+int Waveshare::Receive(uint8_t* buffer, int buffer_bytes, int min_bytes)
 {
     int bytes = Serial.GetAvailable();
-    if (bytes <= 0) {
-        return bytes;
+    if (bytes <= min_bytes) {
+        return 0; // Wait for more to arrive
     }
 
     if (bytes > buffer_bytes) {
