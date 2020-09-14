@@ -53,12 +53,15 @@ int main(int argc, char* argv[])
 
         uint64_t t1 = GetTimeMsec();
         int64_t dt = t1 - t0;
-        if (dt > 1000) {
-            cout << "Sent: Ping" << endl;
+        if (id != -1 && dt > 1000) {
             uint8_t data[kPacketMaxBytes] = {
                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
             };
-            waveshare.Send(data, 240);
+            if (!waveshare.Send(data, 240)) {
+                cerr << "waveshare.Send failed" << endl;
+                return -1;
+            }
+            cout << "Sent: Ping" << endl;
             t0 = t1;
         }
 
