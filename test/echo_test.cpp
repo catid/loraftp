@@ -43,7 +43,7 @@ int main(int argc, char* argv[])
 
     signal(SIGINT, SignalHandler);
 
-    uint64_t t0 = GetTimeUsec();
+    uint64_t t0 = GetTimeMsec();
 
     cout << "Listening..." << endl;
 
@@ -51,10 +51,11 @@ int main(int argc, char* argv[])
     {
         usleep(100000);
 
-        uint64_t t1 = GetTimeUsec();
+        uint64_t t1 = GetTimeMsec();
         int64_t dt = t1 - t0;
 
         if (dt > 500) {
+            cout << "Sent: Ping" << endl;
             uint8_t data[kPacketMaxBytes] = {
                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
             };
