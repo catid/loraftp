@@ -75,13 +75,11 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
         gpioTerminate();
     });
 
+    usleep(1000);
+
     gpioSetMode(kM0, PI_OUTPUT);
     gpioSetMode(kM1, PI_OUTPUT);
     gpioWrite(kM0, 0);
-    gpioWrite(kM1, 0);
-
-    usleep(1000000);
-
     gpioWrite(kM1, 1);
 
     usleep(1000000);

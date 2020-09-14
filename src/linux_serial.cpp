@@ -86,23 +86,15 @@ bool RawSerialPort::Initialize(const char* port_file, int baudrate)
     cfsetispeed(&options, baud);
     cfsetospeed(&options, baud);
 
-    options.c_cflag |= (CLOCAL | CREAD);
-    options.c_cflag &= ~PARENB;
-    options.c_cflag &= ~CSTOPB;
-    options.c_cflag &= ~CSIZE;
-    options.c_cflag |= CS8;
+    options.c_cflag |= CLOCAL | CREAD; // Ignore modem control lines, and enable receiver
+    options.c_cflag &= ~(PARENB | CSTOPB); // No parity or stop bits
+    options.c_cflag &= ~CSIZE; // Clear other sizes
+    options.c_cflag |= CS8; // Use 8-bit
 
-    options.c_oflag &= ~(PARENB | PARODD | CMSPAR);
-    options.c_oflag &= ~(OPOST | ONLCR | OCRNL);
-
-    options.c_iflag &= ~(INLCR | IGNCR | ICRNL | IGNBRK);
-    options.c_iflag &= ~(IUCLC);
-    options.c_iflag &= ~(PARMRK);
-    options.c_iflag &= ~(INPCK | ISTRIP);
-    options.c_iflag &= ~(IXON | IXOFF | IXANY);
-    options.c_iflag &= ~(CRTSCTS);
-
-    options.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+    // Disable all that other jazz
+    options.c_oflag = 0;
+    options.c_iflag = 0;
+    options.c_lflag = 0;
 
     const int operation_timeout_msec = 5000; // 5 seconds
 
