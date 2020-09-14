@@ -84,6 +84,10 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
     gpioSetMode(kM0, PI_OUTPUT);
     gpioSetMode(kM1, PI_OUTPUT);
     gpioWrite(kM0, 0);
+    gpioWrite(kM1, 0);
+
+    // Wait longer on startup because it takes a bit to boot on first mode switch
+    usleep(1000 * 1000);
 
     if (!EnterConfigMode()) {
         cerr << "EnterConfigMode failed" << endl;
@@ -148,12 +152,6 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
 
     if (!WriteConfig(0, config, config_bytes)) {
         cerr << "WriteConfig failed" << endl;
-        return false;
-    }
-
-    // TBD: Not sure if I need to change modes because baudrate changed...
-    if (!EnterTransmitMode()) {
-        cerr << "EnterTransmitMode failed" << endl;
         return false;
     }
 
