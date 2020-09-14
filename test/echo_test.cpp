@@ -36,7 +36,7 @@ int main(int argc, char* argv[])
 
     const int channel = 0;
 
-    if (!waveshare.Initialize(channel, (uint16_t)id)) {
+    if (!waveshare.Initialize(channel, (uint16_t)id, true)) {
         cerr << "Failed to initialize" << endl;
         return -1;
     }
@@ -54,7 +54,7 @@ int main(int argc, char* argv[])
         uint64_t t1 = GetTimeMsec();
         int64_t dt = t1 - t0;
 
-        if (dt > 500) {
+        if (dt > 1000) {
             cout << "Sent: Ping" << endl;
             uint8_t data[kPacketMaxBytes] = {
                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
@@ -71,10 +71,10 @@ int main(int argc, char* argv[])
         }
         if (bytes > 0) {
             cout << "Got bytes:";
-            for (int i = 0; i < bytes; ++i) {
+            for (int i = 0; i < bytes - 1; ++i) {
                 cout << " " << (int)buffer[i];
             }
-            cout << endl;
+            cout << " at RSSI = " << buffer[bytes - 1] * 0.5f << endl;
         }
     }
 
