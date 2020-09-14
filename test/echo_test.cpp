@@ -58,12 +58,12 @@ int main(int argc, char* argv[])
             uint8_t data[kPacketMaxBytes] = {
                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
             };
-            waveshare.Send(data, 10);
+            waveshare.Send(data, 240);
             t0 = t1;
         }
 
-        uint8_t buffer[kPacketMaxBytes];
-        int bytes = waveshare.Receive(buffer, 10 + 1, 10 + 1);
+        uint8_t buffer[kPacketMaxBytes + 1];
+        int bytes = waveshare.Receive(buffer, kPacketMaxBytes + 1, 241);
         if (bytes < 0) {
             cerr << "Link broken" << endl;
             break;
