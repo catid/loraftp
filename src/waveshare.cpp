@@ -96,8 +96,6 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
 
     cout << "Configuring Waveshare HAT..." << endl;
 
-    // FIXME: Changing the baudrate seems to be broken!
-
     // Documentation here: https://www.waveshare.com/wiki/SX1262_915M_LoRa_HAT
     const int config_bytes = 9;
     const uint8_t config[config_bytes] = {
@@ -112,12 +110,12 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
         kNetId,
 
         /*
-            011 00 111
-            ^^^-------- Baudrate = 9600
+            111 00 111
+            ^^^-------- Baudrate = 115200 (for transmit mode)
                 ^^----- 8N1 (no parity bit)
                    ^^^- Airspeed = 62.5 Kilobits/second
         */
-        0x62,
+        0xe7,
 
         /*
             00 0 000 00
@@ -154,6 +152,8 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
         cerr << "WriteConfig failed" << endl;
         return false;
     }
+
+    Baudrate = 115200;
 
     if (!ScanAmbientRssi()) {
         cerr << "ScanAmbientRssi failed" << endl;
@@ -201,7 +201,7 @@ bool Waveshare::EnterConfigMode()
 
     cout << "Opening serial port..." << endl;
 
-    if (!Serial.Initialize(kSerialDevice, Baudrate)) {
+    if (!Serial.Initialize(kSerialDevice, 9600)) {
         cerr << "Failed to open serial port" << endl;
         return false;
     }

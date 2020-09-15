@@ -47,6 +47,8 @@ int main(int argc, char* argv[])
 
     cout << "Listening..." << endl;
 
+    uint32_t counter = 0;
+
     while (!Terminated)
     {
         usleep(100000); // 100 msec
@@ -57,6 +59,7 @@ int main(int argc, char* argv[])
             uint8_t data[kPacketMaxBytes] = {
                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
             };
+            *(uint32_t*)data = counter++;
             if (!waveshare.Send(data, 240)) {
                 cerr << "waveshare.Send failed" << endl;
                 return -1;
