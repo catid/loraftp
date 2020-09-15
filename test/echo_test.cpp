@@ -55,7 +55,7 @@ int main(int argc, char* argv[])
 
         const int send_interval_msec = 100;
 
-        const int packet_bytes = 241;
+        const int packet_bytes = 300;
 
         uint64_t t1 = GetTimeMsec();
         int64_t dt = t1 - t0;
@@ -73,7 +73,7 @@ int main(int argc, char* argv[])
         }
 
         uint8_t buffer[packet_bytes + 1];
-        int bytes = waveshare.Receive(buffer, kPacketMaxBytes + 1, packet_bytes + 1);
+        int bytes = waveshare.Receive(buffer, packet_bytes + 1, packet_bytes + 1);
         if (bytes < 0) {
             cerr << "Link broken" << endl;
             break;
