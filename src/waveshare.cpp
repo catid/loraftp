@@ -237,7 +237,39 @@ bool Waveshare::EnterTransmitMode()
 
     InConfigMode = false;
 
+    // We may have received part of a packet in the buffer so drain the buffer
+    DrainReceiveBuffer();
+
     return true;
+}
+
+void Waveshare::DrainReceiveBuffer()
+{
+    cout << "Draining receive buffer..." << endl;
+
+    for (;;)
+    {
+        usleep(10000); // 10 msec
+
+        int available_bytes = Serial.GetAvailable();
+
+        if (available_bytes <= 0) {
+            break; // Done!
+        }
+
+        uint8_t buffer[256];
+        while (available_bytes > 0) {
+            int read_bytes = available_bytes;
+            if (read_bytes > 256) {
+                read_bytes = 256;
+            }
+            read_bytes = Serial.Read(buffer, read_bytes);
+            if (read_bytes <= 0) {
+                break; // Done!
+            }
+            available_bytes -= read_bytes;
+        }
+    }
 }
 
 bool Waveshare::SetChannel(int channel, bool enable_ambient_rssi)

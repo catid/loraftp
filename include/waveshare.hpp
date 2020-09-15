@@ -45,6 +45,10 @@ public:
         bool lbt = false);
     void Shutdown();
 
+    // Read and ignore data until we stop receiving input.
+    // This might be helpful to resynchronize with the input stream.
+    void DrainReceiveBuffer();
+
     // 0..83
     bool SetChannel(int channel, bool enable_ambient_rssi = false);
 
