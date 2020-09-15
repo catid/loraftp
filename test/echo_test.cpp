@@ -36,7 +36,7 @@ int main(int argc, char* argv[])
 
     const int channel = 0;
 
-    if (!waveshare.Initialize(channel, (uint16_t)id, true)) {
+    if (!waveshare.Initialize(channel, (uint16_t)id, false/*LBT*/)) {
         cerr << "Failed to initialize" << endl;
         return -1;
     }
@@ -51,16 +51,20 @@ int main(int argc, char* argv[])
 
     while (!Terminated)
     {
-        usleep(100000); // 100 msec
+        usleep(2000); // 2 msec
+
+        const int send_interval_msec = 100;
+
+        const int packet_bytes = 300;
 
         uint64_t t1 = GetTimeMsec();
         int64_t dt = t1 - t0;
-        if (id != -1 && dt > 1000) {
-            uint8_t data[kPacketMaxBytes] = {
+        if (id != -1 && dt > send_interval_msec) {
+            uint8_t data[packet_bytes] = {
                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
             };
             *(uint32_t*)data = counter++;
-            if (!waveshare.Send(data, 240)) {
+            if (!waveshare.Send(data, packet_bytes)) {
                 cerr << "waveshare.Send failed" << endl;
                 return -1;
             }
@@ -68,8 +72,8 @@ int main(int argc, char* argv[])
             t0 = t1;
         }
 
-        uint8_t buffer[kPacketMaxBytes + 1];
-        int bytes = waveshare.Receive(buffer, kPacketMaxBytes + 1, 241);
+        uint8_t buffer[packet_bytes + 1];
+        int bytes = waveshare.Receive(buffer, kPacketMaxBytes + 1, packet_bytes + 1);
         if (bytes < 0) {
             cerr << "Link broken" << endl;
             break;
