@@ -110,12 +110,12 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
         kNetId,
 
         /*
-            111 00 101
+            111 00 111
             ^^^-------- Baudrate = 115200 (for transmit mode)
                 ^^----- 8N1 (no parity bit)
                    ^^^- Airspeed = 62.5 Kilobits/second
         */
-        0xe5,
+        0xe7,
 
         /*
             00 0 000 00
