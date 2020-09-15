@@ -36,6 +36,9 @@ int main(int argc, char* argv[])
 
     const int channel = 0;
 
+    // Note: LBT disabled because it appears to be too sensitive to noise
+    // and constantly waits 2 seconds before bursting out a few messages.
+    // Seems broken.
     if (!waveshare.Initialize(channel, (uint16_t)id, false/*LBT*/)) {
         cerr << "Failed to initialize" << endl;
         return -1;
