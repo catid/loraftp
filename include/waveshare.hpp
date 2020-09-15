@@ -55,6 +55,11 @@ public:
     // Send up to 240 bytes at a time
     bool Send(const uint8_t* data, int bytes);
 
+    bool GetSendQueueBytes()
+    {
+        return Serial.GetSendQueueBytes();
+    }
+
     // Returns -1 on error.
     // Returns 0 if min_bytes not satisfied.
     // Otherwise returns number of bytes written

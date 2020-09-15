@@ -133,6 +133,18 @@ void RawSerialPort::Flush()
     }
 }
 
+int RawSerialPort::GetSendQueueBytes()
+{
+    int result = 0;
+    int r = ioctl(fd, FIONWRITE, &result);
+    if (r != 0) {
+        cerr << "FIONWRITE failed: r=" << r << " errno=" << errno << endl;
+        return -1;
+    }
+
+    return result;
+}
+
 bool RawSerialPort::Write(const void* data, int bytes)
 {
     int r = write(fd, (const char*)data, bytes);

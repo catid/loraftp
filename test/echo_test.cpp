@@ -61,7 +61,7 @@ int main(int argc, char* argv[])
                 cerr << "waveshare.Send failed" << endl;
                 return -1;
             }
-            cout << "Sent: Ping" << endl;
+            cout << "Sent: Ping SendQueueBytes=" << waveshare.GetSendQueueBytes() << endl;
             t0 = t1;
         }
 

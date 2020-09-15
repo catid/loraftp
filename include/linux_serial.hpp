@@ -37,6 +37,9 @@ public:
 
     void Flush();
 
+    // Returns number of bytes in send queue
+    int GetSendQueueBytes();
+
     // Returns true for success and false for failure.
     bool Write(const void* data, int bytes);
 
