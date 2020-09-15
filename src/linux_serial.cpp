@@ -136,9 +136,9 @@ void RawSerialPort::Flush()
 int RawSerialPort::GetSendQueueBytes()
 {
     int result = 0;
-    int r = ioctl(fd, FIONWRITE, &result);
+    int r = ioctl(fd, TIOCOUTQ, &result);
     if (r != 0) {
-        cerr << "FIONWRITE failed: r=" << r << " errno=" << errno << endl;
+        cerr << "TIOCOUTQ failed: r=" << r << " errno=" << errno << endl;
         return -1;
     }
 

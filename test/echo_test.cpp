@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
 
     while (!Terminated)
     {
-        usleep(100000);
+        usleep(100000); // 100 msec
 
         uint64_t t1 = GetTimeMsec();
         int64_t dt = t1 - t0;

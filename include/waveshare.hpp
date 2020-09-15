@@ -19,7 +19,7 @@ static const int kChannelCount = 84;
 
 static const int kCheckedChannelCount = 4;
 static const int kCheckedChannels[kCheckedChannelCount] = {
-    16, 32, 64, 82
+    16, 32, 48, 64
 };
 
 
@@ -55,7 +55,7 @@ public:
     // Send up to 240 bytes at a time
     bool Send(const uint8_t* data, int bytes);
 
-    bool GetSendQueueBytes()
+    int GetSendQueueBytes()
     {
         return Serial.GetSendQueueBytes();
     }
