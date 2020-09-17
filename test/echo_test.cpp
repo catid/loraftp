@@ -58,7 +58,7 @@ int main(int argc, char* argv[])
 
         const int send_interval_msec = 50;
 
-        const int packet_bytes = 240;
+        const int packet_bytes = 200;
 
         uint64_t t1 = GetTimeMsec();
         int64_t dt = t1 - t0;
