@@ -56,13 +56,13 @@ int main(int argc, char* argv[])
     {
         usleep(2000); // 2 msec
 
-        const int send_interval_msec = 100;
+        const int send_interval_msec = 50;
 
         const int packet_bytes = 240;
 
         uint64_t t1 = GetTimeMsec();
         int64_t dt = t1 - t0;
-        if (id != -1 && dt > send_interval_msec) {
+        if (id != -1 && dt > send_interval_msec && waveshare.GetSendQueueBytes() == 0) {
             uint8_t data[packet_bytes] = {
                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
             };
