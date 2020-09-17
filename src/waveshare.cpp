@@ -135,7 +135,7 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
         (uint8_t)channel,
 
         /*
-            1 0 0 L 0 011
+            0 0 0 L 0 011
             ^------------- Enable RSSI on receive
               ^----------- Transparent transmitting
                 ^--------- Relay disabled
@@ -143,7 +143,7 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
                     ^----- WOR transmit mode
                       ^^^- WOR period = 2000 msec
         */
-        (uint8_t)(0x83 | (lbt ? 0x10 : 0)),
+        (uint8_t)(0x03 | (lbt ? 0x10 : 0)),
 
         kKeyHi, kKeyLo
     };
