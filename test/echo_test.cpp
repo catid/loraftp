@@ -58,7 +58,7 @@ int main(int argc, char* argv[])
 
         const int send_interval_msec = 50;
 
-        const int packet_bytes = 240;
+        const int packet_bytes = kPacketMaxBytes;
 
         if (id != -1)
         {
