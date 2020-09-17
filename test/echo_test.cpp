@@ -79,18 +79,17 @@ int main(int argc, char* argv[])
         }
         else
         {
-            uint8_t buffer[packet_bytes];
-            int bytes = waveshare.Receive(buffer, packet_bytes, packet_bytes);
+            int bytes = waveshare.Receive();
             if (bytes < 0) {
                 cerr << "Link broken" << endl;
                 break;
             }
             if (bytes > 0) {
+                const uint8_t* buffer = waveshare.RecvBuffer;
                 cout << "Got bytes:";
                 for (int i = 0; i < bytes; ++i) {
                     cout << " " << (int)buffer[i];
                 }
-                //cout << " at RSSI = " << buffer[bytes - 1] * 0.5f << " dBm" << endl;
                 cout << endl;
             }
         }

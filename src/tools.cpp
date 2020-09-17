@@ -23,6 +23,9 @@
     #include <sys/time.h>
 #endif
 
+#include <arm_acle.h>
+#include <arm_neon.h>
+
 namespace lora {
 
 
@@ -77,6 +80,35 @@ uint64_t GetTimeUsec()
 uint64_t GetTimeMsec()
 {
     return GetTimeUsec() / 1000;
+}
+
+uint32_t FastCrc32(const void* vdata, int bytes)
+{
+    const uint8_t* data = reinterpret_cast<const uint8_t*>( vdata );
+
+    uint32_t crc = 0;
+
+    while (bytes >= 8) {
+        crc = __crc32cd(crc, ReadU64_LE(data));
+        data += 8;
+        bytes -= 8;
+    }
+
+    if (bytes & 4) {
+        crc = __crc32cw(crc, ReadU32_LE(data));
+        data += 4;
+    }
+
+    if (bytes & 2) {
+        crc = __crc32ch(crc, ReadU16_LE(data));
+        data += 2;
+    }
+
+    if (bytes & 1) {
+        crc = __crc32cb(crc, *data);
+    }
+
+    return crc;
 }
 
 

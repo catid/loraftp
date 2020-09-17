@@ -9,7 +9,6 @@
 #include <chrono>
 #include <unistd.h>
 #include <cstring>
-#include <functional>
 using namespace std;
 
 namespace lora {
@@ -33,28 +32,6 @@ static const uint8_t kKeyLo = 0x00;
 
 
 //------------------------------------------------------------------------------
-// Tools
-
-/// Calls the provided (lambda) function at the end of the current scope
-class ScopedFunction
-{
-public:
-    ScopedFunction(std::function<void()> func) {
-        Func = func;
-    }
-    ~ScopedFunction() {
-        if (Func) {
-            Func();
-        }
-    }
-    void Cancel() {
-        Func = std::function<void()>();
-    }
-    std::function<void()> Func;
-};
-
-
-//------------------------------------------------------------------------------
 // Waveshare HAT API
 
 bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
@@ -64,6 +41,7 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
     memset(ChannelRssi, 0, sizeof(ChannelRssi));
     InConfigMode = false;
     Baudrate = 9600;
+    RecvState = ReceiveState::Header;
 
     cout << "Entering config mode..." << endl;
 
@@ -245,30 +223,26 @@ bool Waveshare::EnterTransmitMode()
 
 void Waveshare::DrainReceiveBuffer()
 {
-    cout << "Draining receive buffer..." << endl;
+    // Receive state must be reset if we drain the buffer
+    RecvState = ReceiveState::Header;
 
-    for (;;)
-    {
-        usleep(10000); // 10 msec
+    int available_bytes = Serial.GetAvailable();
 
-        int available_bytes = Serial.GetAvailable();
+    if (available_bytes <= 0) {
+        return; // Done!
+    }
 
-        if (available_bytes <= 0) {
-            break; // Done!
+    uint8_t buffer[256];
+    while (available_bytes > 0) {
+        int read_bytes = available_bytes;
+        if (read_bytes > 256) {
+            read_bytes = 256;
         }
-
-        uint8_t buffer[256];
-        while (available_bytes > 0) {
-            int read_bytes = available_bytes;
-            if (read_bytes > 256) {
-                read_bytes = 256;
-            }
-            read_bytes = Serial.Read(buffer, read_bytes);
-            if (read_bytes <= 0) {
-                break; // Done!
-            }
-            available_bytes -= read_bytes;
+        read_bytes = Serial.Read(buffer, read_bytes);
+        if (read_bytes <= 0) {
+            return; // Done!
         }
+        available_bytes -= read_bytes;
     }
 }
 
@@ -428,26 +402,76 @@ bool Waveshare::WaitForResponse(int minbytes)
 
 bool Waveshare::Send(const uint8_t* data, int bytes)
 {
-    return Serial.Write(data, bytes);
+    if (bytes > kPacketMaxBytes) {
+        cerr << "FIXME: Send() parameter too large! bytes=" << bytes << endl;
+        return false;
+    }
+
+    uint8_t frame[240];
+    frame[0] = static_cast<uint8_t>( bytes );
+    WriteU32_LE(frame + 1, FastCrc32(data, bytes));
+    memcpy(frame + 1 + 4, data, bytes);
+
+    return Serial.Write(frame, 1 + 4 + bytes);
 }
 
-int Waveshare::Receive(uint8_t* buffer, int buffer_bytes, int min_bytes)
+int Waveshare::Receive()
 {
-    int bytes = Serial.GetAvailable();
-    if (bytes <= min_bytes) {
-        return 0; // Wait for more to arrive
+    if (RecvState == ReceiveState::Header) {
+        int bytes = Serial.GetAvailable();
+        if (bytes < 5) {
+            return 0; // Wait for more to arrive
+        }
+
+        int r = Serial.Read(RecvBuffer, 5);
+        if (r != 5) {
+            cerr << "Receive: Read failed" << endl;
+            return -1;
+        }
+
+        RecvExpectedBytes = RecvBuffer[0];
+        if (RecvExpectedBytes > kPacketMaxBytes) {
+            // Desynched!
+            DrainReceiveBuffer();
+            return 0;
+        }
+        RecvExpectedCrc32 = ReadU32_LE(RecvBuffer + 1);
+
+        RecvState = ReceiveState::Body;
+        RecvStartUsec = GetTimeUsec();
+        // fall-thru
     }
 
-    if (bytes > buffer_bytes) {
-        bytes = buffer_bytes;
+    if (Serial.GetAvailable() < RecvExpectedBytes) {
+        const uint64_t t1 = GetTimeUsec();
+        const int64_t dt = t1 - RecvStartUsec;
+        const int64_t timeout_usec = 10000;
+        if (dt > timeout_usec) {
+            // Desynched!
+            DrainReceiveBuffer();
+        }
+        return 0;
     }
 
-    int r = Serial.Read(buffer, bytes);
-    if (r != bytes) {
-        return -1;
+    int r = Serial.Read(RecvBuffer, RecvExpectedBytes);
+    if (r != RecvExpectedBytes) {
+        // Desynched!
+        DrainReceiveBuffer();
+        if (r < 0) {
+            cerr << "Receive: Read failed (2)" << endl;
+            return -1;
+        }
+        return 0;
     }
 
-    return bytes;
+    const uint32_t crc = FastCrc32(RecvBuffer, RecvExpectedBytes);
+    if (crc != RecvExpectedCrc32) {
+        // Desynched!
+        DrainReceiveBuffer();
+        return 0;
+    }
+
+    return RecvExpectedBytes;
 }
 
 

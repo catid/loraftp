@@ -12,7 +12,8 @@ namespace lora {
 // Constants
 
 // Maximum Send() size
-static const int kPacketMaxBytes = 240;
+// HACK: We add a header to fix truncation problem with this HAT
+static const int kPacketMaxBytes = 235;
 
 // Number of channels
 static const int kChannelCount = 84;
@@ -20,6 +21,12 @@ static const int kChannelCount = 84;
 static const int kCheckedChannelCount = 4;
 static const int kCheckedChannels[kCheckedChannelCount] = {
     16, 32, 48, 64
+};
+
+enum class ReceiveState
+{
+    Header,
+    Body
 };
 
 
@@ -60,14 +67,18 @@ public:
         return Serial.GetSendQueueBytes();
     }
 
-    // Returns -1 on error.
-    // Returns 0 if min_bytes not satisfied.
-    // Otherwise returns number of bytes written
-    int Receive(uint8_t* buffer, int buffer_bytes, int min_bytes);
+    // Poll for incoming data, written to RecvBuffer member.
+    // Returns number of bytes received.
+    // Returns 0 if no data has arrived.
+    // Returns -1 on read error.
+    int Receive();
 
     // Scan all channels and read ambient RSSI.
     // After this you must call SetChannel() again because it changes the channel
     bool ScanAmbientRssi(int retries = 10);
+
+    // Receive() data goes here
+    uint8_t RecvBuffer[240];
 
     // Updated by ScanAmbientRssi()
     // Note only the ones in kCheckedChannels are actually updated.
@@ -77,6 +88,11 @@ protected:
     RawSerialPort Serial;
     bool InConfigMode = false;
     int Baudrate = 9600;
+
+    ReceiveState RecvState = ReceiveState::Header;
+    int RecvExpectedBytes = 0;
+    uint32_t RecvExpectedCrc32 = 0;
+    uint64_t RecvStartUsec = 0;
 
     bool EnterConfigMode();
     bool EnterTransmitMode();
