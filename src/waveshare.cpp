@@ -215,9 +215,6 @@ bool Waveshare::EnterTransmitMode()
 
     InConfigMode = false;
 
-    // We may have received part of a packet in the buffer so drain the buffer
-    DrainReceiveBuffer();
-
     return true;
 }
 
@@ -430,7 +427,7 @@ int Waveshare::Receive()
         }
 
         RecvExpectedBytes = RecvBuffer[0];
-        if (RecvExpectedBytes > kPacketMaxBytes) {
+        if (RecvExpectedBytes > kPacketMaxBytes || RecvExpectedBytes <= 0) {
             // Desynched!
             DrainReceiveBuffer();
             return 0;
@@ -439,15 +436,17 @@ int Waveshare::Receive()
 
         RecvState = ReceiveState::Body;
         RecvStartUsec = GetTimeUsec();
+        cout << "RecvExpectedBytes = " << RecvExpectedBytes << endl;
         // fall-thru
     }
 
     if (Serial.GetAvailable() < RecvExpectedBytes) {
         const uint64_t t1 = GetTimeUsec();
         const int64_t dt = t1 - RecvStartUsec;
-        const int64_t timeout_usec = 10000;
+        const int64_t timeout_usec = 200000;
         if (dt > timeout_usec) {
             // Desynched!
+            cout << "TIMEOUT" << endl;
             DrainReceiveBuffer();
         }
         return 0;
@@ -467,6 +466,7 @@ int Waveshare::Receive()
     const uint32_t crc = FastCrc32(RecvBuffer, RecvExpectedBytes);
     if (crc != RecvExpectedCrc32) {
         // Desynched!
+        cout << "CRC ERROR" << endl;
         DrainReceiveBuffer();
         return 0;
     }

@@ -86,7 +86,7 @@ uint32_t FastCrc32(const void* vdata, int bytes)
 {
     const uint8_t* data = reinterpret_cast<const uint8_t*>( vdata );
 
-    uint32_t crc = 0;
+    uint32_t crc = 0xdeadbeef;
 
     while (bytes >= 8) {
         crc = __crc32cd(crc, ReadU64_LE(data));
