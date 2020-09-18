@@ -56,7 +56,7 @@ int main(int argc, char* argv[])
     {
         usleep(2000); // 2 msec
 
-        const int send_interval_msec = 90;
+        const int send_interval_msec = 100;
 
         const int packet_bytes = kPacketMaxBytes;
 
