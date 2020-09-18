@@ -77,7 +77,7 @@ int main(int argc, char* argv[])
                 t0 = t1;
             }
         }
-        //else
+        else
         {
             if (!waveshare.Receive([&](const uint8_t* data, int bytes) {
                 cout << "Got bytes:";
