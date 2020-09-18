@@ -2,17 +2,73 @@
 
 #pragma once
 
+#include "wireshare.hpp"
+
+#include "wirehair.h" // wirehair subproject
+
+#include <atomic>
+#include <thread>
+#include <memory>
+
 namespace lora {
 
 
 //------------------------------------------------------------------------------
-// Constants
+// Server
 
-static const int kVersion = 100; // 1.0.0
+class FileServer
+{
+public:
+    ~FileServer()
+    {
+        Shutdown();
+    }
+    bool Initialize();
+    void Shutdown();
+
+    bool IsTerminated() const
+    {
+        return Terminated;
+    }
+
+protected:
+    Waveshare Uplink;
+
+    std::atomic<bool> Terminated = ATOMIC_VAR_INIT(false);
+    std::shared_ptr<std::thread> Thread;
+
+    void Loop();
+};
 
 
 //------------------------------------------------------------------------------
-// TODO
+// Client
+
+class FileClient
+{
+public:
+    ~FileClient()
+    {
+        Shutdown();
+    }
+    bool Initialize(const char* filepath);
+    void Shutdown();
+
+    bool IsTerminated() const
+    {
+        return Terminated;
+    }
+
+protected:
+    Waveshare Uplink;
+
+    std::atomic<bool> Terminated = ATOMIC_VAR_INIT(false);
+    std::shared_ptr<std::thread> Thread;
+
+    std::vector<uint8_t> CompressedFile;
+
+    void Loop();
+};
 
 
 } // namespace lora

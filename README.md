@@ -54,17 +54,17 @@ The client first compresses the file using Zstd to make sure that it is as small
 
 The client and server both configure the radio for the highest performance bandwidth mode.
 
-Before starting, both server and client check all 84 channels for noise power.
+Before starting, both server and client check a subset of the 84 channels for noise power.
 The HAT supports 84 channels: 850.125 + (channel * 1MHz).  Recall that LoRa uses 500 kHz spectrum bandwidth.
 
 
-#### Client => Server OFFER (Packet # 0, 90+X bytes):
+#### Client => Server OFFER (Packet # 0):
 
-The client and server rendezvous on channel 0, by the server listening for an OFFER from the client.
-The client transmits its 84 byte noise power data to the server in this OFFER.
+The client and server rendezvous on channel 42, by the server listening for an OFFER from the client.
+The client transmits its noise power data to the server in this OFFER.
 
 ```
-    0x00 0xfe 0xad 0x01 <Channel RSSI (84 bytes)> <File length (4 bytes)> <Filename Length(1 byte)> <Filename (X bytes)>
+    0x00 0xfe 0xad 0x01 <Channel RSSI (4 bytes)> <File length (4 bytes)> <Filename Length(1 byte)> <Filename (X bytes)>
 ```
 
 

@@ -1,5 +1,19 @@
 // Copyright (c) 2020, Christopher A. Taylor.  All rights reserved.
 
+/*
+    This stress-tests the basic features of the waveshare C++ library.
+
+    To use the echo_test app:
+
+    On Pi 1 that receives data:
+
+        sudo ./echo_test -1
+
+    On Pi 2 that sends data:
+
+        sudo ./echo_test 0
+*/
+
 #include "waveshare.hpp"
 using namespace lora;
 
