@@ -23,12 +23,6 @@ static const int kCheckedChannels[kCheckedChannelCount] = {
     16, 32, 48, 64
 };
 
-enum class ReceiveState
-{
-    Header,
-    Body
-};
-
 
 //------------------------------------------------------------------------------
 // Waveshare HAT API
@@ -67,18 +61,13 @@ public:
         return Serial.GetSendQueueBytes();
     }
 
-    // Poll for incoming data, written to RecvBuffer member.
-    // Returns number of bytes received.
-    // Returns 0 if no data has arrived.
-    // Returns -1 on read error.
-    int Receive();
+    // Calls callback for each packet received.
+    // Returns false if pipe breaks.
+    bool Receive(std::function<void(const uint8_t* data, int bytes)> callback);
 
     // Scan all channels and read ambient RSSI.
     // After this you must call SetChannel() again because it changes the channel
     bool ScanAmbientRssi(int retries = 10);
-
-    // Receive() data goes here
-    uint8_t RecvBuffer[240];
 
     // Updated by ScanAmbientRssi()
     // Note only the ones in kCheckedChannels are actually updated.
@@ -89,10 +78,11 @@ protected:
     bool InConfigMode = false;
     int Baudrate = 9600;
 
-    ReceiveState RecvState = ReceiveState::Header;
-    int RecvExpectedBytes = 0;
-    uint32_t RecvExpectedCrc32 = 0;
-    uint64_t RecvStartUsec = 0;
+    // Receive() data goes here
+    static const int kRecvBufferBytes = 240;
+    uint8_t RecvBuffer[kRecvBufferBytes];
+    //uint64_t RecvStartUsec = 0; // Used to avoid blocking short messages
+    int RecvOffsetBytes = 0;
 
     bool EnterConfigMode();
     bool EnterTransmitMode();
@@ -102,6 +92,8 @@ protected:
     bool ReadAmbientRssi(uint8_t& rssi);
 
     bool WaitForResponse(int minbytes);
+
+    bool FillRecvBuffer();
 };
 
 

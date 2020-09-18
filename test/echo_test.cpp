@@ -56,7 +56,7 @@ int main(int argc, char* argv[])
     {
         usleep(2000); // 2 msec
 
-        const int send_interval_msec = 50;
+        const int send_interval_msec = 90;
 
         const int packet_bytes = kPacketMaxBytes;
 
@@ -79,18 +79,15 @@ int main(int argc, char* argv[])
         }
         else
         {
-            int bytes = waveshare.Receive();
-            if (bytes < 0) {
-                cerr << "Link broken" << endl;
-                break;
-            }
-            if (bytes > 0) {
-                const uint8_t* buffer = waveshare.RecvBuffer;
+            if (!waveshare.Receive([&](const uint8_t* data, int bytes) {
                 cout << "Got bytes:";
                 for (int i = 0; i < bytes; ++i) {
-                    cout << " " << (int)buffer[i];
+                    cout << " " << (int)data[i];
                 }
                 cout << endl;
+            })) {
+                cerr << "Link broken" << endl;
+                break;
             }
         }
     }

@@ -41,7 +41,7 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
     memset(ChannelRssi, 0, sizeof(ChannelRssi));
     InConfigMode = false;
     Baudrate = 9600;
-    RecvState = ReceiveState::Header;
+    RecvOffsetBytes = 0;
 
     cout << "Entering config mode..." << endl;
 
@@ -221,7 +221,7 @@ bool Waveshare::EnterTransmitMode()
 void Waveshare::DrainReceiveBuffer()
 {
     // Receive state must be reset if we drain the buffer
-    RecvState = ReceiveState::Header;
+    RecvOffsetBytes = 0;
 
     int available_bytes = Serial.GetAvailable();
 
@@ -412,66 +412,80 @@ bool Waveshare::Send(const uint8_t* data, int bytes)
     return Serial.Write(frame, 1 + 4 + bytes);
 }
 
-int Waveshare::Receive()
+bool Waveshare::FillRecvBuffer()
 {
-    if (RecvState == ReceiveState::Header) {
-        int bytes = Serial.GetAvailable();
-        if (bytes < 5) {
-            return 0; // Wait for more to arrive
-        }
-
-        int r = Serial.Read(RecvBuffer, 5);
-        if (r != 5) {
-            cerr << "Receive: Read failed" << endl;
-            return -1;
-        }
-
-        RecvExpectedBytes = RecvBuffer[0];
-        if (RecvExpectedBytes > kPacketMaxBytes || RecvExpectedBytes <= 0) {
-            // Desynched!
-            DrainReceiveBuffer();
-            return 0;
-        }
-        RecvExpectedCrc32 = ReadU32_LE(RecvBuffer + 1);
-
-        RecvState = ReceiveState::Body;
-        RecvStartUsec = GetTimeUsec();
-        cout << "RecvExpectedBytes = " << RecvExpectedBytes << endl;
-        // fall-thru
+    const int remaining_buffer_bytes = kRecvBufferBytes - RecvOffsetBytes;
+    if (remaining_buffer_bytes <= 0) {
+        return true;
     }
 
-    if (Serial.GetAvailable() < RecvExpectedBytes) {
-        const uint64_t t1 = GetTimeUsec();
-        const int64_t dt = t1 - RecvStartUsec;
-        const int64_t timeout_usec = 200000;
-        if (dt > timeout_usec) {
-            // Desynched!
-            cout << "TIMEOUT" << endl;
-            DrainReceiveBuffer();
+    const int available = Serial.GetAvailable();
+    if (available < 0) {
+        RecvOffsetBytes = 0;
+        return false;
+    }
+    if (available == 0) {
+        return true;
+    }
+
+    int read_bytes = available;
+    if (read_bytes > remaining_buffer_bytes) {
+        read_bytes = remaining_buffer_bytes;
+    }
+
+    int r = Serial.Read(RecvBuffer + RecvOffsetBytes, read_bytes);
+    if (r != read_bytes) {
+        RecvOffsetBytes = 0;
+        return false;
+    }
+
+    RecvOffsetBytes += read_bytes;
+    return true;
+}
+
+bool Waveshare::Receive(std::function<void(const uint8_t* data, int bytes)> callback)
+{
+    if (!FillRecvBuffer()) {
+        return false;
+    }
+
+    const int buffer_bytes = RecvOffsetBytes;
+
+    int start_offset;
+    for (start_offset = 0; start_offset + 5 < buffer_bytes; ++start_offset)
+    {
+        const int packet_bytes = RecvBuffer[start_offset];
+        if (packet_bytes <= 0 || packet_bytes > kPacketMaxBytes) {
+            // Not the start of a packet
+            continue;
         }
-        return 0;
-    }
 
-    int r = Serial.Read(RecvBuffer, RecvExpectedBytes);
-    if (r != RecvExpectedBytes) {
-        // Desynched!
-        DrainReceiveBuffer();
-        if (r < 0) {
-            cerr << "Receive: Read failed (2)" << endl;
-            return -1;
+        const int available_bytes = buffer_bytes - start_offset;
+        if (available_bytes < 5 + packet_bytes) {
+            // Not enough data arrived yet
+            break;
         }
-        return 0;
+
+        const uint32_t expected_crc = ReadU32_LE(RecvBuffer + start_offset + 1);
+        const uint32_t crc = FastCrc32(RecvBuffer + start_offset + 5, packet_bytes);
+        if (expected_crc != crc) {
+            // Not the start of a packet
+            continue;
+        }
+
+        callback(RecvBuffer + start_offset + 5, packet_bytes);
+
+        // Skip ahead to next potential start point
+        start_offset += 4 + packet_bytes;
     }
 
-    const uint32_t crc = FastCrc32(RecvBuffer, RecvExpectedBytes);
-    if (crc != RecvExpectedCrc32) {
-        // Desynched!
-        cout << "CRC ERROR" << endl;
-        DrainReceiveBuffer();
-        return 0;
+    // If we need to eliminate data from the start:
+    if (start_offset > 0) {
+        RecvOffsetBytes = buffer_bytes - start_offset;
+        memmove(RecvBuffer, RecvBuffer + start_offset, RecvOffsetBytes);
     }
 
-    return RecvExpectedBytes;
+    return true;
 }
 
 
