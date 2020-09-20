@@ -37,6 +37,9 @@ protected:
     std::atomic<bool> Terminated = ATOMIC_VAR_INIT(false);
     std::shared_ptr<std::thread> Thread;
 
+    std::string Filename;
+    std::vector<uint8_t> FileData;
+
     void Loop();
 };
 

@@ -50,6 +50,9 @@ bool FileServer::Initialize()
 void FileServer::Shutdown()
 {
     Uplink.Shutdown();
+
+    wirehair_free(Decoder);
+    Decoder = nullptr;
 }
 
 void FileServer::Loop()
@@ -83,11 +86,43 @@ void FileServer::Loop()
                     cerr << "Truncated packet";
                     return;
                 }
+
                 Counter8 truncated = data[0];
                 Counter32 block_id = Counter32::ExpandFromTruncated(last_block_id, truncated);
                 last_block_id = block_id;
+
+                WirehairResult r = wirehair_decode(Decoder, block_id.ToUnsigned(), data + 1, bytes - 1);
+                if (r != Wirehair_Success) {
+                    Terminated = true;
+                    cerr << "wirehair_decode failed: " << wirehair_result_string(r) << endl;
+                    return;
+                }
+                if (r == Wirehair_NeedMore) {
+                    // More needed
+                    return;
+                }
+
+                cout << "Enough file data has been received" << endl;
+
+                r = wirehair_recover(Decoder, FileData.data(), FileData.size());
+                if (r != Wirehair_Success) {
+                    cerr << "wirehair_recover failed: " << wirehair_result_string(r) << endl;
+                    Terminated = true;
+                    return;
+                }
+
+                if (!WriteBufferToFile(Filename.c_str(), FileData.data(), FileData.size())) {
+                    cerr << "WriteBufferToFile failed: " << Filename << endl;
+                    Terminated = true;
+                    return;
+                }
+
+                cout << "File transfer complete." << endl;
+                Terminated = true;
+                return;
             } else {
                 // FIXME
+                // wirehair_decoder_create
             }
         })) {
             cerr << "Receive loop failed" << endl;
