@@ -69,6 +69,7 @@ add_library(loraftp STATIC
     src/waveshare.cpp
     src/linux_serial.cpp
     src/tools.cpp
+    src/Counter.h
 )
 target_include_directories(loraftp PUBLIC
     include

@@ -3,6 +3,7 @@
 #include "loraftp.hpp"
 
 #include "zstd.h" // zstd_lib subproject
+#include "Counter.h"
 
 #include <cstring>
 #include <cassert>
@@ -25,7 +26,7 @@ static const uint16_t kClientAddr = 1;
 static const int kZstdCompressLevel = 1;
 
 // We need size + crc + offset header on each frame, eating into the 240 max.
-static const int kBlockBytes = 233;
+static const int kBlockBytes = 234;
 
 // Time between switching send/receive roles and checking in on receiver.
 static const int64_t kBackchannelIntervalUsec = 5 * 1000 * 1000;
@@ -58,6 +59,8 @@ void FileServer::Loop()
     bool in_transfer = false;
     uint64_t last_ambient_scan_usec = GetTimeMsec();
 
+    Counter32 last_block_id = 0;
+
     while (!Terminated)
     {
         // Periodically rescan for ambient noise power
@@ -76,7 +79,13 @@ void FileServer::Loop()
 
         if (!Uplink.Receive([&](const uint8_t* data, int bytes) {
             if (in_transfer) {
-                // FIXME
+                if (bytes < 2) {
+                    cerr << "Truncated packet";
+                    return;
+                }
+                Counter8 truncated = data[0];
+                Counter32 block_id = Counter32::ExpandFromTruncated(last_block_id, truncated);
+                last_block_id = block_id;
             } else {
                 // FIXME
             }
@@ -180,11 +189,11 @@ void FileClient::Loop()
         return;
     }
 
-    uint8_t block[2 + kBlockBytes];
+    uint8_t block[1 + kBlockBytes];
     unsigned block_id = 0;
     uint32_t block_bytes = 0;
 
-    WirehairResult r = wirehair_encode(Encoder, block_id, block + 2, (uint32_t)kBlockBytes, &block_bytes);
+    WirehairResult r = wirehair_encode(Encoder, block_id, block + 1, (uint32_t)kBlockBytes, &block_bytes);
     if (r != Wirehair_Success) {
         cerr << "wirehair_encode failed: r=" << wirehair_result_string(r) << endl;
         return;
@@ -212,9 +221,9 @@ void FileClient::Loop()
         dt = t1 - t0;
         const int64_t send_interval_usec = 100 * 1000;
         if (dt > send_interval_usec) {
-            WriteU16_LE(block, (uint16_t)block_id);
+            block[0] = (uint8_t)block_id;
 
-            if (!Uplink.Send(block, 2 + block_bytes)) {
+            if (!Uplink.Send(block, 1 + block_bytes)) {
                 cerr << "Uplink send failed" << endl;
                 break;
             }
