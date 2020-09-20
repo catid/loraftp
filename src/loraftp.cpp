@@ -4,6 +4,8 @@
 
 #include "zstd.h" // zstd_lib subproject
 
+#include <cstring>
+#include <cassert>
 #include <iostream>
 using namespace std;
 
@@ -23,7 +25,7 @@ static const uint16_t kClientAddr = 1;
 static const int kZstdCompressLevel = 1;
 
 // We need size + crc + offset header on each frame, eating into the 240 max.
-static const int kBlockSize = 233;
+static const int kBlockBytes = 233;
 
 // Time between switching send/receive roles and checking in on receiver.
 static const int64_t kBackchannelIntervalUsec = 5 * 1000 * 1000;
@@ -102,6 +104,18 @@ bool FileClient::Initialize(const char* filepath)
         return false;
     }
 
+    const char* last_slash0 = strrchr(filepath, '/');
+    const char* last_slash1 = strrchr(filepath, '\\');
+    const char* last_slash = last_slash0;
+    if (last_slash < last_slash1) {
+        last_slash = last_slash1;
+    }
+    if (last_slash) {
+        Filename = last_slash + 1;
+    } else {
+        Filename = filepath;
+    }
+
     const uint8_t* file_data = mmf.GetData();
     const uint32_t file_bytes = mmf.GetDataBytes();
 
@@ -117,7 +131,7 @@ bool FileClient::Initialize(const char* filepath)
         return false;
     }
 
-    Encoder = wirehair_encoder_create(Encoder, CompressedFile.data(), CompressedFileBytes, kBlockSize);
+    Encoder = wirehair_encoder_create(Encoder, CompressedFile.data(), CompressedFileBytes, kBlockBytes);
     if (!Encoder) {
         cerr << "wirehair_encoder_create failed" << endl;
         return false;
@@ -135,6 +149,9 @@ bool FileClient::Initialize(const char* filepath)
 
 void FileClient::Shutdown()
 {
+    Terminated = true;
+    JoinThread(Thread);
+
     Uplink.Shutdown();
 
     wirehair_free(Encoder);
@@ -143,7 +160,7 @@ void FileClient::Shutdown()
 
 void FileClient::Loop()
 {
-    ScopedFunction term_scope([]() {
+    ScopedFunction term_scope([&]() {
         // All function exit conditions flag terminated
         Terminated = true;
     });
@@ -151,16 +168,14 @@ void FileClient::Loop()
     cout << "FileClient: Loop started" << endl;
 
     int selected_channel = 0;
-
-    while (!Terminated)
-    {
-        // FIXME: Setup
-        Uplink.Send();
+    if (!MakeOffer(selected_channel)) {
+        cerr << "Server unreachable" << endl;
+        return;
     }
 
     uint64_t last_backchannel_usec = GetTimeUsec();
 
-    if (!Uplink.SetChannel(channel)) {
+    if (!Uplink.SetChannel(selected_channel)) {
         cerr << "Failed to set channel" << endl;
         return;
     }
@@ -182,7 +197,15 @@ void FileClient::Loop()
         uint64_t t1 = GetTimeUsec();
         int64_t dt = t1 - last_backchannel_usec;
         if (dt > kBackchannelIntervalUsec) {
-            // FIXME: Do backchannel step here
+            if (!BackchannelCheck()) {
+                cerr << "BackchannelCheck failed" << endl;
+                break;
+            }
+        }
+
+        if (PercentageComplete >= 100) {
+            cout << "Transfer completed successfully" << endl;
+            break;
         }
 
         // Send another block
@@ -211,19 +234,91 @@ void FileClient::Loop()
     cout << "FileClient: Loop terminated" << endl;
 }
 
-bool FileClient::BackchannelCheck()
+bool FileClient::MakeOffer(int& selected_channel)
 {
     uint64_t t0 = GetTimeUsec();
+    bool got_ack = false;
 
     while (!Terminated)
     {
+        uint8_t offer[235] = {
+            0x00, 0xfe, 0xad, 0x01,
+        };
+        memcpy(offer + 4, Uplink.ChannelRssiRaw, 4);
+        WriteU32_LE(offer + 8, (uint32_t)CompressedFileBytes);
+        assert(CompressedFileBytes <= 0xffffffff);
+        assert(Filename.length() < 235 - 4 - 4 - 4 - 1);
+        offer[12] = (uint8_t)Filename.length();
+        memcpy(offer + 13, Filename.c_str(), Filename.length());
+
+        cout << "Filename = " << Filename << endl;
+        cout << "Length = " << Filename.length() << endl;
+
+        Uplink.Send(offer, 4 + 4 + 4 + 1 + Filename.length());
+
+
+
+        // Process incoming data from server
         if (!Uplink.Receive([&](const uint8_t* data, int bytes) {
-            // FIXME: Parse backchannel data from server
+            if (bytes != 2 || data[0] != 3) {
+                cerr << "Invalid data received from server: bytes=" << bytes << " type=" << (int)data[0] << endl;
+                Terminated = true;
+            } else {
+                PercentageComplete = data[1];
+                got_ack = true;
+            }
         })) {
             cerr << "Receive loop failed" << endl;
             return false;
         }
 
+        if (got_ack) {
+            cout << "Server received: " << PercentageComplete << "%" << endl;
+            return true;
+        }
+
+        // Timeout?
+        uint64_t t1 = GetTimeUsec();
+        int64_t dt = t1 - t0;
+        const int64_t backchannel_timeout_usec = 2 * 1000 * 1000;
+        if (dt > backchannel_timeout_usec) {
+            cerr << "*** Peer disconnected (timeout)" << endl;
+            return false;
+        }
+
+        usleep(4000);
+    }
+
+    return true;
+}
+
+bool FileClient::BackchannelCheck()
+{
+    uint64_t t0 = GetTimeUsec();
+    bool got_ack = false;
+
+    while (!Terminated)
+    {
+        // Process incoming data from server
+        if (!Uplink.Receive([&](const uint8_t* data, int bytes) {
+            if (bytes != 2 || data[0] != 3) {
+                cerr << "Invalid data received from server: bytes=" << bytes << " type=" << (int)data[0] << endl;
+                Terminated = true;
+            } else {
+                PercentageComplete = data[1];
+                got_ack = true;
+            }
+        })) {
+            cerr << "Receive loop failed" << endl;
+            return false;
+        }
+
+        if (got_ack) {
+            cout << "Server received: " << PercentageComplete << "%" << endl;
+            return true;
+        }
+
+        // Timeout?
         uint64_t t1 = GetTimeUsec();
         int64_t dt = t1 - t0;
         const int64_t backchannel_timeout_usec = 2 * 1000 * 1000;

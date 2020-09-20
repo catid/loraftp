@@ -39,6 +39,7 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
     Shutdown();
 
     memset(ChannelRssi, 0, sizeof(ChannelRssi));
+    memset(ChannelRssiRaw, 0, sizeof(ChannelRssiRaw));
     InConfigMode = false;
     Baudrate = 9600;
     RecvOffsetBytes = 0;
@@ -300,6 +301,7 @@ bool Waveshare::ScanAmbientRssi(int retries)
 
         const float dbm = largest_rssi * 0.5f;
         ChannelRssi[channel] = dbm;
+        ChannelRssiRaw[channel] = largest_rssi;
     }
 
     return true;

@@ -4,6 +4,9 @@
 
 #include <stdint.h>
 #include <functional>
+#include <memory>
+#include <thread>
+#include <system_error>
 
 namespace lora {
 
@@ -40,6 +43,19 @@ public:
     }
     std::function<void()> Func;
 };
+
+/// Join a std::shared_ptr<std::thread>
+inline void JoinThread(std::shared_ptr<std::thread>& th)
+{
+    if (th) {
+        try {
+            if (th->joinable()) {
+                th->join();
+            }
+        } catch (std::system_error& /*err*/) {}
+        th = nullptr;
+    }
+}
 
 
 //------------------------------------------------------------------------------

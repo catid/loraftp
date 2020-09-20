@@ -7,8 +7,6 @@
 #include "wirehair.h" // wirehair subproject
 
 #include <atomic>
-#include <thread>
-#include <memory>
 #include <vector>
 
 namespace lora {
@@ -68,11 +66,16 @@ protected:
     std::atomic<bool> Terminated = ATOMIC_VAR_INIT(false);
     std::shared_ptr<std::thread> Thread;
 
+    std::string Filename;
+
     std::vector<uint8_t> CompressedFile;
     size_t CompressedFileBytes = 0;
 
+    int PercentageComplete = 0;
+
     void Loop();
 
+    bool MakeOffer(int& selected_channel);
     bool BackchannelCheck();
 };
 

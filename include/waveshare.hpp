@@ -71,6 +71,7 @@ public:
 
     // Updated by ScanAmbientRssi()
     // Note only the ones in kCheckedChannels are actually updated.
+    uint8_t ChannelRssiRaw[kChannelCount]; // units: dBm * 2
     float ChannelRssi[kChannelCount]; // dBm
 
 protected:
