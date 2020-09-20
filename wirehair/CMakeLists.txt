@@ -31,3 +31,6 @@ include_directories(.)
 
 add_library(wirehair STATIC ${LIB_SOURCE_FILES})
 set_target_properties(wirehair PROPERTIES PUBLIC_HEADER wirehair.h)
+target_include_directories(wirehair PUBLIC
+    .
+)

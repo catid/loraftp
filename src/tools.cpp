@@ -26,6 +26,8 @@
 #include <arm_acle.h>
 #include <arm_neon.h>
 
+#include <string.h>
+
 
 //------------------------------------------------------------------------------
 // Operating System Check

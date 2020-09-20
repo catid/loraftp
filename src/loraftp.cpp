@@ -7,6 +7,8 @@
 #include <iostream>
 using namespace std;
 
+#include <unistd.h> // usleep
+
 namespace lora {
 
 
@@ -19,6 +21,12 @@ static const uint16_t kServerAddr = 0;
 static const uint16_t kClientAddr = 1;
 
 static const int kZstdCompressLevel = 1;
+
+// We need size + crc + offset header on each frame, eating into the 240 max.
+static const int kBlockSize = 233;
+
+// Time between switching send/receive roles and checking in on receiver.
+static const int64_t kBackchannelIntervalUsec = 5 * 1000 * 1000;
 
 
 //------------------------------------------------------------------------------
@@ -65,7 +73,11 @@ void FileServer::Loop()
         }
 
         if (!Uplink.Receive([&](const uint8_t* data, int bytes) {
-            
+            if (in_transfer) {
+                // FIXME
+            } else {
+                // FIXME
+            }
         })) {
             cerr << "Receive loop failed" << endl;
             break;
@@ -96,12 +108,18 @@ bool FileClient::Initialize(const char* filepath)
     const size_t file_bound = ZSTD_compressBound(file_bytes);
     CompressedFile.resize(file_bound);
 
-    const size_t compressed_bytes = ZSTD_compress(
+    CompressedFileBytes = ZSTD_compress(
         CompressedFile.data(), file_bound,
         file_data, file_bytes, kZstdCompressLevel);
 
-    if (ZSTD_isError(compressed_bytes)) {
+    if (ZSTD_isError(CompressedFileBytes)) {
         cerr << "Zstd failed" << endl;
+        return false;
+    }
+
+    Encoder = wirehair_encoder_create(Encoder, CompressedFile.data(), CompressedFileBytes, kBlockSize);
+    if (!Encoder) {
+        cerr << "wirehair_encoder_create failed" << endl;
         return false;
     }
 
@@ -118,30 +136,106 @@ bool FileClient::Initialize(const char* filepath)
 void FileClient::Shutdown()
 {
     Uplink.Shutdown();
+
+    wirehair_free(Encoder);
+    Encoder = nullptr;
 }
 
 void FileClient::Loop()
 {
+    ScopedFunction term_scope([]() {
+        // All function exit conditions flag terminated
+        Terminated = true;
+    });
+
     cout << "FileClient: Loop started" << endl;
+
+    int selected_channel = 0;
 
     while (!Terminated)
     {
+        // FIXME: Setup
         Uplink.Send();
     }
 
+    uint64_t last_backchannel_usec = GetTimeUsec();
+
+    if (!Uplink.SetChannel(channel)) {
+        cerr << "Failed to set channel" << endl;
+        return;
+    }
+
+    uint8_t block[2 + kBlockBytes];
+    unsigned block_id = 0;
+    uint32_t block_bytes = 0;
+
+    WirehairResult r = wirehair_encode(Encoder, block_id, block + 2, (uint32_t)kBlockBytes, &block_bytes);
+    if (r != Wirehair_Success) {
+        cerr << "wirehair_encode failed: r=" << wirehair_result_string(r) << endl;
+        return;
+    }
+
+    uint64_t t0 = 0;
+
     while (!Terminated)
     {
-        if (!Uplink.Receive([&](const uint8_t* data, int bytes) {
-            
-        })) {
-            cerr << "Receive loop failed" << endl;
-            break;
+        uint64_t t1 = GetTimeUsec();
+        int64_t dt = t1 - last_backchannel_usec;
+        if (dt > kBackchannelIntervalUsec) {
+            // FIXME: Do backchannel step here
+        }
+
+        // Send another block
+        dt = t1 - t0;
+        const int64_t send_interval_usec = 100 * 1000;
+        if (dt > send_interval_usec) {
+            WriteU16_LE(block, (uint16_t)block_id);
+
+            if (!Uplink.Send(block, 2 + block_bytes)) {
+                cerr << "Uplink send failed" << endl;
+                break;
+            }
+
+            block_id++;
+
+            WirehairResult r = wirehair_encode(Encoder, block_id, block, (uint32_t)kBlockBytes, &block_bytes);
+            if (r != Wirehair_Success) {
+                cerr << "wirehair_encode failed: r=" << wirehair_result_string(r) << endl;
+                break;
+            }
         }
 
         usleep(4000);
     }
 
     cout << "FileClient: Loop terminated" << endl;
+}
+
+bool FileClient::BackchannelCheck()
+{
+    uint64_t t0 = GetTimeUsec();
+
+    while (!Terminated)
+    {
+        if (!Uplink.Receive([&](const uint8_t* data, int bytes) {
+            // FIXME: Parse backchannel data from server
+        })) {
+            cerr << "Receive loop failed" << endl;
+            return false;
+        }
+
+        uint64_t t1 = GetTimeUsec();
+        int64_t dt = t1 - t0;
+        const int64_t backchannel_timeout_usec = 2 * 1000 * 1000;
+        if (dt > backchannel_timeout_usec) {
+            cerr << "*** Peer disconnected (timeout)" << endl;
+            return false;
+        }
+
+        usleep(4000);
+    }
+
+    return true;
 }
 
 

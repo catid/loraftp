@@ -2,13 +2,14 @@
 
 #pragma once
 
-#include "wireshare.hpp"
+#include "waveshare.hpp"
 
 #include "wirehair.h" // wirehair subproject
 
 #include <atomic>
 #include <thread>
 #include <memory>
+#include <vector>
 
 namespace lora {
 
@@ -33,6 +34,7 @@ public:
 
 protected:
     Waveshare Uplink;
+    WirehairCodec Decoder = nullptr;
 
     std::atomic<bool> Terminated = ATOMIC_VAR_INIT(false);
     std::shared_ptr<std::thread> Thread;
@@ -61,13 +63,17 @@ public:
 
 protected:
     Waveshare Uplink;
+    WirehairCodec Encoder = nullptr;
 
     std::atomic<bool> Terminated = ATOMIC_VAR_INIT(false);
     std::shared_ptr<std::thread> Thread;
 
     std::vector<uint8_t> CompressedFile;
+    size_t CompressedFileBytes = 0;
 
     void Loop();
+
+    bool BackchannelCheck();
 };
 
 
