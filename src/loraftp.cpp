@@ -121,8 +121,14 @@ void FileServer::Loop()
                 Terminated = true;
                 return;
             } else {
-                // FIXME
-                // wirehair_decoder_create
+                if (bytes < 4 + 4 + 4 + 2) {
+                    cout << "Ignoring truncated LoRa packet" << endl;
+                    return;
+                }
+                if (data[0] != 0 || data[1] != 0xfe || data[2] != 0xad || data[3] != 0x01) {
+                    cout << "Ignoring wrong protocol LoRa packet" << endl;
+                    return;
+                }
             }
         })) {
             cerr << "Receive loop failed" << endl;
