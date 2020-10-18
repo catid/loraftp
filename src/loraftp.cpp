@@ -3,6 +3,7 @@
 #include "loraftp.hpp"
 
 #include "zstd.h" // zstd_lib subproject
+
 #include "Counter.h"
 
 #include <cstring>
@@ -177,7 +178,8 @@ bool FileClient::Initialize(const char* filepath)
         file_data, file_bytes, kZstdCompressLevel);
 
     if (ZSTD_isError(CompressedFileBytes)) {
-        cerr << "Zstd failed" << endl;
+        cerr << "Zstd failed: " << ZSTD_getErrorName(CompressedFileBytes)
+            << " file_bytes=" << file_bytes << endl;
         return false;
     }
 
@@ -306,15 +308,12 @@ bool FileClient::MakeOffer(int& selected_channel)
 
         Uplink.Send(offer, 4 + 4 + 4 + 1 + Filename.length());
 
-
-
         // Process incoming data from server
         if (!Uplink.Receive([&](const uint8_t* data, int bytes) {
             if (bytes != 2 || data[0] != 3) {
                 cerr << "Invalid data received from server: bytes=" << bytes << " type=" << (int)data[0] << endl;
                 Terminated = true;
             } else {
-                PercentageComplete = data[1];
                 got_ack = true;
             }
         })) {
@@ -323,7 +322,7 @@ bool FileClient::MakeOffer(int& selected_channel)
         }
 
         if (got_ack) {
-            cout << "Server received: " << PercentageComplete << "%" << endl;
+            cout << "Server acknowledged transmission request" << endl;
             return true;
         }
 
@@ -339,7 +338,8 @@ bool FileClient::MakeOffer(int& selected_channel)
         usleep(4000);
     }
 
-    return true;
+    cerr << "Aborted offer" << endl;
+    return false;
 }
 
 bool FileClient::BackchannelCheck()

@@ -51,6 +51,9 @@ target_include_directories(zstd PUBLIC
 
 add_subdirectory(wirehair)
 
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+
 
 ################################################################################
 # Targets
@@ -79,6 +82,7 @@ target_link_libraries(loraftp
         pigpio
         wirehair
         zstd
+        Threads::Threads
 )
 
 install(TARGETS loraftp DESTINATION lib)
