@@ -353,7 +353,7 @@ bool FileClient::MakeOffer(int& selected_channel)
             return false;
         }
 
-        usleep(4000);
+        usleep(100 * 1000);
     }
 
     spdlog::warn("Aborted offer");
