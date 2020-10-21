@@ -4,7 +4,6 @@
 
 #include <pigpio.h> // sudo apt install pigpio
 
-#include <iostream>
 #include <thread>
 #include <chrono>
 #include <unistd.h>
@@ -44,7 +43,7 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
     Baudrate = 9600;
     RecvOffsetBytes = 0;
 
-    cout << "Entering config mode..." << endl;
+    spdlog::debug("Entering config mode...");
 
     /*
         Getting the GPIOs to work was a pain on Raspberry Pi 4B because
@@ -56,7 +55,7 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
     */
 
     if (gpioInitialise() < 0) {
-        cerr << "pigpio init failed" << endl;
+        spdlog::error("pigpio::gpioInitialise failed");
         return false;
     }
 
@@ -69,11 +68,11 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
     usleep(1000 * 1000);
 
     if (!EnterConfigMode()) {
-        cerr << "EnterConfigMode failed" << endl;
+        spdlog::error("EnterConfigMode failed");
         return false;
     }
 
-    cout << "Configuring Waveshare HAT..." << endl;
+    spdlog::debug("Configuring Waveshare HAT...");
 
     // Documentation here: https://www.waveshare.com/wiki/SX1262_915M_LoRa_HAT
     const int config_bytes = 9;
@@ -128,30 +127,29 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
     };
 
     if (!WriteConfig(0, config, config_bytes)) {
-        cerr << "WriteConfig failed" << endl;
+        spdlog::error("WriteConfig failed");
         return false;
     }
 
     Baudrate = 115200;
 
     if (!ScanAmbientRssi()) {
-        cerr << "ScanAmbientRssi failed" << endl;
+        spdlog::error("ScanAmbientRssi failed");
         return false;
     }
 
     for (int i = 0; i < kCheckedChannelCount; ++i) {
         const int channel = kCheckedChannels[i];
-        cout << "Ambient noise RSSI (channel " << channel << "): " << ChannelRssi[channel] << " dBm" << endl;
+        spdlog::debug("Channel {} ambient noise RSSI: {} dBm", channel, ChannelRssi[channel]);
     }
 
     // Configure back to initial channel without ambient RSSI measurement enabled
     if (!SetChannel(channel)) {
-        cerr << "SetChannel failed" << endl;
+        spdlog::error("SetChannel failed");
         return false;
     }
 
-    cout << "LoRa radio ready." << endl;
-
+    spdlog::debug("LoRa radio ready");
     return true;
 }
 
@@ -167,26 +165,26 @@ bool Waveshare::EnterConfigMode()
         return true;
     }
 
-    cout << "Closing serial port..." << endl;
+    spdlog::debug("Closing serial port...");
 
     Serial.Flush();
     Serial.Shutdown();
 
-    cout << "Entering config mode..." << endl;
+    spdlog::debug("Entering config mode...");
 
     gpioWrite(kM1, 1);
 
     usleep(kModeSwitchWaitUsec);
 
-    cout << "Opening serial port..." << endl;
+    spdlog::debug("Opening serial port...");
 
     if (!Serial.Initialize(kSerialDevice, 9600)) {
-        cerr << "Failed to open serial port" << endl;
+        spdlog::error("Failed to open serial port: {}", kSerialDevice);
         return false;
     }
 
+    spdlog::debug("Now in config mode");
     InConfigMode = true;
-
     return true;
 }
 
@@ -196,26 +194,26 @@ bool Waveshare::EnterTransmitMode()
         return true;
     }
 
-    cout << "Closing serial port..." << endl;
+    spdlog::debug("Closing serial port...");
 
     Serial.Flush();
     Serial.Shutdown();
 
-    cout << "Entering transmit mode..." << endl;
+    spdlog::debug("Entering transmit mode...");
 
     gpioWrite(kM1, 0);
 
     usleep(kModeSwitchWaitUsec);
 
-    cout << "Opening serial port..." << endl;
+    spdlog::debug("Opening serial port...");
 
     if (!Serial.Initialize(kSerialDevice, Baudrate)) {
-        cerr << "Failed to open serial port" << endl;
+        spdlog::error("Failed to open serial port: {} baudrate={}", kSerialDevice, Baudrate);
         return false;
     }
 
+    spdlog::debug("Now in transmit mode");
     InConfigMode = false;
-
     return true;
 }
 
@@ -247,11 +245,11 @@ void Waveshare::DrainReceiveBuffer()
 bool Waveshare::SetChannel(int channel, bool enable_ambient_rssi)
 {
     if (!EnterConfigMode()) {
-        cerr << "SetChannel: EnterConfigMode failed" << endl;
+        spdlog::error("SetChannel: EnterConfigMode failed");
         return false;
     }
     
-    cout << "Configuring channel " << channel << "..." << endl;
+    spdlog::debug("Configuring channel {}...", channel);
 
     uint8_t config[2] = {
         (uint8_t)(enable_ambient_rssi ? 0x20 : 0),
@@ -259,12 +257,12 @@ bool Waveshare::SetChannel(int channel, bool enable_ambient_rssi)
     };
 
     if (!WriteConfig(4, config, 2)) {
-        cerr << "SetChannel: WriteConfig failed" << endl;
+        spdlog::error("SetChannel: WriteConfig failed");
         return false;
     }
 
     if (!EnterTransmitMode()) {
-        cerr << "SetChannel: EnterTransmitMode failed" << endl;
+        spdlog::error("SetChannel: EnterTransmitMode failed");
         return false;
     }
 
@@ -273,25 +271,25 @@ bool Waveshare::SetChannel(int channel, bool enable_ambient_rssi)
 
 bool Waveshare::ScanAmbientRssi(int retries)
 {
-    cout << "*** Detecting ambient RSSI:" << endl;
+    spdlog::debug("*** Detecting ambient RSSI:");
 
     for (int i = 0; i < kCheckedChannelCount; ++i)
     {
         const int channel = kCheckedChannels[i];
 
-        cout << "Setting channel " << channel << "..." << endl;
+        spdlog::debug("Setting channel {}...", channel);
         if (!SetChannel(channel, true)) {
-            cerr << "ScanAmbientRssi: SetChannel failed" << endl;
+            spdlog::error("ScanAmbientRssi: SetChannel failed");
             return false;
         }
 
-        cout << "Reading RSSI for channel " << channel << "..." << endl;
+        spdlog::debug("Reading RSSI for channel {}...", channel);
 
         uint8_t largest_rssi = 0;
         for (int j = 0; j < retries; ++j) {
             uint8_t rssi;
             if (!ReadAmbientRssi(rssi)) {
-                cerr << "ScanAmbientRssi: ReadAmbientRssi failed on channel " << channel << endl;
+                spdlog::error("ScanAmbientRssi: ReadAmbientRssi failed on channel {}", channel);
                 return false;
             }
             if (largest_rssi < rssi) {
@@ -314,18 +312,18 @@ bool Waveshare::ReadAmbientRssi(uint8_t& rssi)
     };
 
     if (!Serial.Write(read_rssi_command, 6)) {
-        cerr << "Failed to write RSSI request" << endl;
+        spdlog::error("ReadAmbientRssi: Serial.Write failed");
         return false;
     }
 
     if (!WaitForResponse(4)) {
-        cerr << "ReadAmbientRssi: Timeout" << endl;
+        spdlog::warn("ReadAmbientRssi: WaitForResponse timeout");
     }
 
     uint8_t readback[16];
     int r = Serial.Read(readback, 4);
     if (r != 4) {
-        cerr << "ReadAmbientRssi: read failed: r=" << r << endl;
+        spdlog::error("ReadAmbientRssi: Serial.Read failed: r=", r);
         return false;
     }
 
@@ -336,7 +334,7 @@ bool Waveshare::ReadAmbientRssi(uint8_t& rssi)
 bool Waveshare::WriteConfig(int offset, const uint8_t* data, int bytes)
 {
     if (bytes >= 240) {
-        cerr << "invalid config len" << endl;
+        spdlog::error("WriteConfig: invalid config len={}", bytes);
         return false;
     }
 
@@ -347,31 +345,28 @@ bool Waveshare::WriteConfig(int offset, const uint8_t* data, int bytes)
     memcpy(buffer + 3, data, bytes);
 
     if (!Serial.Write(buffer, 3 + bytes)) {
-        cerr << "Serial.Write failed" << endl;
+        spdlog::error("WriteConfig: Serial.Write failed");
         return false;
     }
 
     if (!WaitForResponse(3 + bytes)) {
-        cerr << "WriteConfig: Timeout" << endl;
+        spdlog::warn("WriteConfig: WaitForResponse timeout");
     }
 
     uint8_t readback[256];
     int r = Serial.Read(readback, 3 + bytes);
     if (r != 3 + bytes) {
-        cerr << "read failed: r=" << r << endl;
-        for (int i = 0; i < r; ++i) {
-            cerr << "readback[" << i << "] = " << (int)readback[i] << endl;
-        }
+        spdlog::error("WriteConfig: Serial.Read failed: r={} bytes={}", r, bytes);
         return false;
     }
 
     if (readback[0] != 0xc1) {
-        cerr << "failed response not 0xc1 actual=" << r << endl;
+        spdlog::error("WriteConfig: Response not 0xc1 actual={}", r);
         return false;
     }
 
     if (0 != memcmp(readback + 1, buffer + 1, 2 + bytes)) {
-        cerr << "readback did not match config" << endl;
+        spdlog::error("WriteConfig: Readback did not match config bytes=", bytes);
         return false;
     }
 
@@ -388,7 +383,7 @@ bool Waveshare::WaitForResponse(int minbytes)
         int64_t dt = t1 - t0;
 
         if (dt > 5000) {
-            cerr << "timeout waiting for config result avail=" << Serial.GetAvailable() << endl;
+            spdlog::error("Timeout waiting for config result avail={}", Serial.GetAvailable());
             return false;
         }
 
@@ -402,7 +397,7 @@ bool Waveshare::WaitForResponse(int minbytes)
 bool Waveshare::Send(const uint8_t* data, int bytes)
 {
     if (bytes > kPacketMaxBytes) {
-        cerr << "FIXME: Send() parameter too large! bytes=" << bytes << endl;
+        spdlog::error("FIXME: Send() parameter too large! bytes={}", bytes);
         return false;
     }
 

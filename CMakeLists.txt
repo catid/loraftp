@@ -18,7 +18,7 @@ if(MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
 else()
     # Warnings
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -Wno-psabi")
 
     set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -march=native -fstack-protector")
     set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native")
@@ -76,6 +76,7 @@ add_library(loraftp STATIC
 )
 target_include_directories(loraftp PUBLIC
     include
+    .
 )
 target_link_libraries(loraftp
     PUBLIC

@@ -3,8 +3,6 @@
 #include "loraftp.hpp"
 using namespace lora;
 
-#include <iostream>
-#include <fstream>
 #include <thread>
 #include <chrono>
 using namespace std;
@@ -29,10 +27,10 @@ void SignalHandler(int)
 
 int main(int argc, char* argv[])
 {
-    cout << "loraftp_client V" << kVersion << endl;
+    spdlog::info("loraftp_client V{}", kVersion);
 
     if (argc < 2) {
-        cout << "Usage: " << argv[0] << " <file to send>" << endl;
+        spdlog::info("Usage: {} <file to send>", argv[0]);
         return -1;
     }
 
@@ -43,7 +41,7 @@ int main(int argc, char* argv[])
 
     const char* file_path = argv[1];
     if (!client.Initialize(file_path)) {
-        cerr << "client.Initialize failed" << endl;
+        spdlog::error("client.Initialize failed");
         return -1;
     }
 
@@ -53,6 +51,5 @@ int main(int argc, char* argv[])
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
-    cout << "Shutting down..." << endl;
     return 0;
 }

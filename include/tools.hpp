@@ -8,6 +8,8 @@
 #include <thread>
 #include <system_error>
 
+#include <spdlog/spdlog.h>
+
 namespace lora {
 
 
@@ -331,10 +333,17 @@ struct MappedReadOnlySmallFile
 
 
 //------------------------------------------------------------------------------
-// Helpers
+// File Helpers
 
 /// Write the provided buffer to the file at the given path
 bool WriteBufferToFile(const char* path, const void* data, uint64_t bytes);
+
+
+//------------------------------------------------------------------------------
+// Logging
+
+// Set up color console and rotated disk logging from a background thread
+void SetupAsyncDiskLog(const std::string& filename);
 
 
 } // namespace lora

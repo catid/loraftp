@@ -28,6 +28,10 @@
 
 #include <string.h>
 
+#include <spdlog/async.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/sinks/rotating_file_sink.h>
+
 
 //------------------------------------------------------------------------------
 // Operating System Check
@@ -578,7 +582,7 @@ void MappedReadOnlySmallFile::Close()
 
 
 //------------------------------------------------------------------------------
-// Helpers
+// File Helpers
 
 /// Write the provided buffer to the file at the given path
 bool WriteBufferToFile(const char* path, const void* data, uint64_t bytes)
@@ -602,6 +606,46 @@ bool WriteBufferToFile(const char* path, const void* data, uint64_t bytes)
     file.Close();
 
     return true;
+}
+
+
+//------------------------------------------------------------------------------
+// Logging
+
+static void AtExitWrapper()
+{
+    spdlog::info("Terminated");
+    spdlog::shutdown();
+}
+
+void SetupAsyncDiskLog(const std::string& filename)
+{
+    spdlog::init_thread_pool(8192, 1);
+    auto stdout_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+    auto rotating_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
+        filename,
+        4*1024*1024,
+        3);
+    std::vector<spdlog::sink_ptr> sinks {
+        stdout_sink,
+        rotating_sink
+    };
+    auto logger = std::make_shared<spdlog::async_logger>(
+        filename,
+        sinks.begin(), sinks.end(),
+        spdlog::thread_pool(),
+        spdlog::async_overflow_policy::overrun_oldest);
+        //spdlog::async_overflow_policy::block);
+    spdlog::register_logger(logger);
+
+    spdlog::set_default_logger(logger);
+
+    spdlog::set_pattern("[%H:%M:%S %z] [%^%L%$] %v");
+
+    spdlog::set_level(spdlog::level::debug); // Set global log level to debug
+
+    // Register an atexit() callback so we do not need manual shutdown in app code
+    std::atexit(AtExitWrapper);
 }
 
 

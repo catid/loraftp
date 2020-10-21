@@ -9,8 +9,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include <iostream>
-using namespace std;
+#include "tools.hpp" // Logging
 
 namespace lora {
 
@@ -53,7 +52,6 @@ int BaudrateToBaud(int baudrate)
     case 3500000: return B3500000;
     case 4000000: return B4000000;
     }
-    cerr << "Invalid baudrate" << endl;
     return -1;
 }
 
@@ -67,13 +65,13 @@ bool RawSerialPort::Initialize(const char* port_file, int baudrate)
 
     int baud = BaudrateToBaud(baudrate);
     if (baud < 0) {
-        cerr << "invalid baudrate";
+        spdlog::error("Invalid baudrate: {}", baudrate);
         return false;
     }
 
     fd = open(port_file, O_RDWR | O_NOCTTY | O_NDELAY | O_NONBLOCK);
     if (fd < 0) {
-        cerr << "Unable to open serial port: " << port_file << endl;
+        spdlog::error("Unable to open serial port: {}", port_file);
         return -1;
     }
 
@@ -138,7 +136,7 @@ int RawSerialPort::GetSendQueueBytes()
     int result = 0;
     int r = ioctl(fd, TIOCOUTQ, &result);
     if (r != 0) {
-        cerr << "TIOCOUTQ failed: r=" << r << " errno=" << errno << endl;
+        spdlog::error("TIOCOUTQ failed: r={} errno={}", r, errno);
         return -1;
     }
 
@@ -150,9 +148,9 @@ bool RawSerialPort::Write(const void* data, int bytes)
     int r = write(fd, (const char*)data, bytes);
     if (r != bytes) {
         if (r < 0) {
-            cerr << "write failed: errno=" << errno << endl;
+            spdlog::error("write failed: errno={}", errno);
         } else {
-            cerr << "truncated write: r=" << r << endl;
+            spdlog::error("truncated write: r=", r);
         }
         return false;
     }
@@ -165,7 +163,7 @@ int RawSerialPort::GetAvailable()
     int result = 0;
     int r = ioctl(fd, FIONREAD, &result);
     if (r != 0) {
-        cerr << "FIONREAD failed: r=" << r << " errno=" << errno << endl;
+        spdlog::error("FIONREAD failed: r={} errno={}", r, errno);
         return -1;
     }
 
@@ -176,7 +174,7 @@ int RawSerialPort::Read(void* data, int bytes)
 {
     int r = read(fd, (char*)data, bytes);
     if (r < 0) {
-        cerr << "read failed: errno=" << errno << endl;
+        spdlog::error("read failed: errno={}", errno);
         return -1;
     }
 

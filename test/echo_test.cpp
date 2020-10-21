@@ -19,7 +19,7 @@ using namespace lora;
 
 #include <unistd.h>
 
-#include <iostream>
+#include <sstream>
 #include <fstream>
 #include <csignal>
 #include <atomic>
@@ -41,7 +41,7 @@ void SignalHandler(int)
 int main(int argc, char* argv[])
 {
     if (argc != 2) {
-        cerr << "Must provide an argument: The ID for this device" << endl;
+        spdlog::error("Must provide an argument: The ID for this device");
         return -1;
     }
     const int id = atoi(argv[1]);
@@ -54,7 +54,7 @@ int main(int argc, char* argv[])
     // and constantly waits 2 seconds before bursting out a few messages.
     // Seems broken.
     if (!waveshare.Initialize(channel, (uint16_t)id, false/*LBT*/)) {
-        cerr << "Failed to initialize" << endl;
+        spdlog::error("Failed to initialize");
         return -1;
     }
 
@@ -62,7 +62,7 @@ int main(int argc, char* argv[])
 
     uint64_t t0 = GetTimeMsec();
 
-    cout << "Listening..." << endl;
+    spdlog::info("Listening...");
 
     uint32_t counter = 0;
 
@@ -84,28 +84,28 @@ int main(int argc, char* argv[])
                 };
                 *(uint32_t*)data = counter++;
                 if (!waveshare.Send(data, packet_bytes)) {
-                    cerr << "waveshare.Send failed" << endl;
+                    spdlog::error("waveshare.Send failed");
                     return -1;
                 }
-                cout << "Sent: Ping SendQueueBytes=" << waveshare.GetSendQueueBytes() << endl;
+                spdlog::info("Sent: Ping SendQueueBytes={}", waveshare.GetSendQueueBytes());
                 t0 = t1;
             }
         }
         else
         {
             if (!waveshare.Receive([&](const uint8_t* data, int bytes) {
-                cout << "Got bytes:";
+                std::ostringstream oss;
+                oss << "Got bytes:";
                 for (int i = 0; i < bytes; ++i) {
-                    cout << " " << (int)data[i];
+                    oss << " " << (int)data[i];
                 }
-                cout << endl;
+                spdlog::info("{}", oss.str());
             })) {
-                cerr << "Link broken" << endl;
+                spdlog::error("Link broken");
                 break;
             }
         }
     }
 
-    cout << "Clean shutdown" << endl;
     return 0;
 }
