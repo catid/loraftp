@@ -206,10 +206,14 @@ bool FileClient::Initialize(const char* filepath)
         return false;
     }
 
+    spdlog::info("Compressed {} to {} bytes.  Starting LoRa uplink...", filepath, CompressedFileBytes);
+
     if (!Uplink.Initialize(kRendezvousChannel, kServerAddr)) {
         spdlog::error("Uplink.Initialize failed");
         return false;
     }
+
+    spdlog::info("Connecting to server...");
 
     Terminated = false;
     Thread = std::make_shared<std::thread>(&FileClient::Loop, this);
@@ -343,9 +347,9 @@ bool FileClient::MakeOffer(int& selected_channel)
         // Timeout?
         uint64_t t1 = GetTimeUsec();
         int64_t dt = t1 - t0;
-        const int64_t backchannel_timeout_usec = 2 * 1000 * 1000;
+        const int64_t backchannel_timeout_usec = 15 * 1000 * 1000;
         if (dt > backchannel_timeout_usec) {
-            spdlog::error("*** Peer disconnected (timeout)");
+            spdlog::error("Peer disconnected (timeout)");
             return false;
         }
 
@@ -385,9 +389,9 @@ bool FileClient::BackchannelCheck()
         // Timeout?
         uint64_t t1 = GetTimeUsec();
         int64_t dt = t1 - t0;
-        const int64_t backchannel_timeout_usec = 2 * 1000 * 1000;
+        const int64_t backchannel_timeout_usec = 15 * 1000 * 1000;
         if (dt > backchannel_timeout_usec) {
-            spdlog::error("*** Peer disconnected (timeout)");
+            spdlog::error("Peer disconnected (timeout)");
             return false;
         }
 
