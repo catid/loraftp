@@ -343,7 +343,7 @@ bool WriteBufferToFile(const char* path, const void* data, uint64_t bytes);
 // Logging
 
 // Set up color console and rotated disk logging from a background thread
-void SetupAsyncDiskLog(const std::string& filename);
+void SetupAsyncDiskLog(const std::string& filename, bool print_debug_logs);
 
 
 } // namespace lora

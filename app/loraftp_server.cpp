@@ -30,7 +30,9 @@ int main(int argc, char* argv[])
     (void)argc;
     (void)argv;
 
-    spdlog::info("loraftp_server V{}", kVersion);
+    SetupAsyncDiskLog("server.log", false/*enable debug logs?*/);
+
+    spdlog::info("loraftp_server V{} starting...", kVersion);
 
     FileServer server;
     ScopedFunction client_scope([&]() {
@@ -44,7 +46,7 @@ int main(int argc, char* argv[])
 
     signal(SIGINT, SignalHandler);
 
-    spdlog::info("Waiting for client...");
+    spdlog::info("Ready. Waiting for client...");
 
     while (!Terminated && !server.IsTerminated()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));

@@ -40,6 +40,8 @@ void SignalHandler(int)
 
 int main(int argc, char* argv[])
 {
+    SetupAsyncDiskLog("echo_test.log", true/*enable debug logs?*/);
+
     if (argc != 2) {
         spdlog::error("Must provide an argument: The ID for this device");
         return -1;

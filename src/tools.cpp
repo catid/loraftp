@@ -618,7 +618,7 @@ static void AtExitWrapper()
     spdlog::shutdown();
 }
 
-void SetupAsyncDiskLog(const std::string& filename)
+void SetupAsyncDiskLog(const std::string& filename, bool print_debug_logs)
 {
     spdlog::init_thread_pool(8192, 1);
     auto stdout_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
@@ -642,7 +642,11 @@ void SetupAsyncDiskLog(const std::string& filename)
 
     spdlog::set_pattern("[%H:%M:%S %z] [%^%L%$] %v");
 
-    spdlog::set_level(spdlog::level::debug); // Set global log level to debug
+    if (print_debug_logs) {
+        spdlog::set_level(spdlog::level::debug);
+    } else {
+        spdlog::set_level(spdlog::level::info);
+    }
 
     // Register an atexit() callback so we do not need manual shutdown in app code
     std::atexit(AtExitWrapper);

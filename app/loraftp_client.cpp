@@ -27,7 +27,9 @@ void SignalHandler(int)
 
 int main(int argc, char* argv[])
 {
-    spdlog::info("loraftp_client V{}", kVersion);
+    SetupAsyncDiskLog("client.log", false/*enable debug logs?*/);
+
+    spdlog::info("loraftp_client V{} starting...", kVersion);
 
     if (argc < 2) {
         spdlog::info("Usage: {} <file to send>", argv[0]);
