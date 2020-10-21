@@ -183,6 +183,12 @@ bool FileClient::Initialize(const char* filepath)
         return false;
     }
 
+    WirehairResult result = wirehair_init();
+    if (result != Wirehair_Success) {
+        cerr << "wirehair_init failed" << endl;
+        return false;
+    }
+
     Encoder = wirehair_encoder_create(Encoder, CompressedFile.data(), CompressedFileBytes, kBlockBytes);
     if (!Encoder) {
         cerr << "wirehair_encoder_create failed" << endl;
@@ -302,9 +308,6 @@ bool FileClient::MakeOffer(int& selected_channel)
         assert(Filename.length() < 235 - 4 - 4 - 4 - 1);
         offer[12] = (uint8_t)Filename.length();
         memcpy(offer + 13, Filename.c_str(), Filename.length());
-
-        cout << "Filename = " << Filename << endl;
-        cout << "Length = " << Filename.length() << endl;
 
         Uplink.Send(offer, 4 + 4 + 4 + 1 + Filename.length());
 
