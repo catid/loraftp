@@ -72,7 +72,7 @@ void FileServer::Loop()
         {
             uint64_t t1 = GetTimeMsec();
             int64_t dt_msec = t1 - last_ambient_scan_usec;
-            if (dt_msec > 10 * 1000)
+            if (dt_msec > 30 * 1000)
             {
                 spdlog::info("RSSI ambient noise scan started...");
                 if (!Uplink.ScanAmbientRssi()) {

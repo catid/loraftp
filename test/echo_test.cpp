@@ -42,11 +42,13 @@ int main(int argc, char* argv[])
 {
     SetupAsyncDiskLog("echo_test.log", true/*enable debug logs?*/);
 
+    int id;
     if (argc != 2) {
-        spdlog::error("Must provide an argument: The ID for this device");
-        return -1;
+        spdlog::warn("No ID argument provided.  Using ID=-1 for receiver side");
+        id = -1;
+    } else {
+        id = atoi(argv[1]);
     }
-    const int id = atoi(argv[1]);
 
     Waveshare waveshare;
 
