@@ -1,8 +1,8 @@
 # This is a work in progress (doesn't work yet)
 
-# LoRa FTP
+# LoRa FTP : Broadcast File Transfer
 
-File transfer between two Raspberry Pis using the LoRa Pi HAT from Waveshare.
+File transfer between Raspberry Pis using the LoRa Pi HAT from Waveshare.
 
 
 ## Why Is This Useful?
@@ -11,7 +11,7 @@ LoRa is mostly a unidirectional protocol designed for sensors, which are periodi
 
 It takes about a second to switch from send to receive mode on this hardware, without canceling the last outgoing message.  This means that traditional file transfer protocols involving message acknowledgements are not suitable.
 
-Instead, this project uses the http://wirehairfec.com/ library as a fountain code to stream data without a backchannel.
+Instead, this project uses the http://wirehairfec.com/ library to stream data efficiently.  The file sender continously sends.  Multiple receivers can join the stream at any time and start receiving the offered file.
 
 
 ## Ingredients
