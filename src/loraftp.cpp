@@ -38,7 +38,7 @@ static const int64_t kBackchannelIntervalUsec = 5 * 1000 * 1000;
 
 bool FileServer::Initialize()
 {
-    if (!Uplink.Initialize(kRendezvousChannel, kServerAddr)) {
+    if (!Uplink.Initialize(kRendezvousChannel, kMonitorAddr)) {
         spdlog::error("Uplink.Initialize failed");
         return false;
     }

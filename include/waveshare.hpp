@@ -23,6 +23,7 @@ static const int kCheckedChannels[kCheckedChannelCount] = {
     16, 32, 48, 64
 };
 
+static const uint16_t kMonitorAddr = UINT16_C(0xffff);
 
 //------------------------------------------------------------------------------
 // Waveshare HAT API
@@ -37,12 +38,13 @@ public:
 
     /*
         Channel = Initial channel to configure 0...kChannelCount-1
-        Address is the node address or 0xffff for monitor mode
-        LBT = Listen Before Transmit
+        Address is the node address or 0xffff for monitor mode.
+        Note: The only way to receive data is in monitor mode!
+        LBT = Listen Before Transmit (adds ~2 seconds of latency).
     */
     bool Initialize(
         int channel, // initial channel
-        uint16_t addr = 0xffff/*broadcast*/,
+        uint16_t addr,
         bool lbt = false);
     void Shutdown();
 
