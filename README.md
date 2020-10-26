@@ -36,6 +36,7 @@ Clone the repo on both devices and build it:
     git clone https://github.com/catid/loraftp
     cd loraftp
     mkdir build
+    cd build
     cmake ..
     make -j
 ```
