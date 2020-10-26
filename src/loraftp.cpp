@@ -142,6 +142,8 @@ void FileServer::Loop()
                     spdlog::warn("Ignoring wrong protocol LoRa packet: bytes={}", bytes);
                     return;
                 }
+
+                spdlog::info("Received message outside of transfer");
             }
         })) {
             spdlog::error("Receive loop failed");
