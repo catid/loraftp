@@ -4,8 +4,6 @@
 
 #include "zstd.h" // zstd_lib subproject
 
-#include "Counter.h"
-
 #include <cstring>
 #include <cassert>
 #include <sstream>
@@ -21,34 +19,34 @@ namespace lora {
 
 static const int kRendezvousChannel = 42;
 
-static const uint16_t kServerAddr = 0;
-static const uint16_t kClientAddr = 1;
+static const uint16_t kSenderAddr = 1;
 
 static const int kZstdCompressLevel = 1;
 
 // We need size + crc + offset header on each frame, eating into the 240 max.
 static const int kBlockBytes = 234;
 
-// Time between switching send/receive roles and checking in on receiver.
-static const int64_t kBackchannelIntervalUsec = 5 * 1000 * 1000;
-
 
 //------------------------------------------------------------------------------
-// Server
+// FileReceiver
 
-bool FileServer::Initialize()
+bool FileReceiver::Initialize(OnReceiveProgress on_recv)
 {
-    if (!Uplink.Initialize(kRendezvousChannel, kServerAddr)) {
+    Shutdown();
+
+    OnRecv = on_recv;
+
+    if (!Uplink.Initialize(kRendezvousChannel, kMonitorAddress)) {
         spdlog::error("Uplink.Initialize failed");
         return false;
     }
 
     Terminated = false;
-    Thread = std::make_shared<std::thread>(&FileServer::Loop, this);
+    Thread = std::make_shared<std::thread>(&FileReceiver::Loop, this);
     return true;
 }
 
-void FileServer::Shutdown()
+void FileReceiver::Shutdown()
 {
     Uplink.Shutdown();
 
@@ -56,119 +54,185 @@ void FileServer::Shutdown()
     Decoder = nullptr;
 }
 
-void FileServer::Loop()
+bool FileReceiver::InitDecoder(uint32_t file_bytes)
 {
-    spdlog::debug("FileServer::Loop started");
+    Decoder = wirehair_decoder_create(Decoder, file_bytes, kFileBlockBytes);
+    if (!Decoder) {
+        spdlog::error("wirehair_decoder_create failed");
+        return false;
+    }
+    return true;
+}
 
-    bool in_transfer = false;
-    uint64_t last_ambient_scan_usec = GetTimeMsec();
+void FileReceiver::OnFileInfo(uint32_t file_bytes, uint32_t hash, uint32_t next_block_id, uint32_t decompressed_bytes)
+{
+    if (file_bytes <= 0 || decompressed_bytes < 2) {
+        spdlog::warn("Ignored invalid file info");
+        return;
+    }
 
-    Counter32 last_block_id = 0;
+    NextBlockId = next_block_id;
+
+    // If file changed mid-transmit:
+    if (FileBytes != file_bytes || FileHash != hash || DecompressedBytes != decompressed_bytes)
+    {
+        TransferComplete = false;
+
+        spdlog::info("Detected new file transfer starting [{} bytes]", file_bytes);
+        if (InitDecoder(file_bytes)) {
+            FileBytes = file_bytes;
+            FileHash = hash;
+            DecompressedBytes = decompressed_bytes;
+        }
+
+        TotalBlockCount = (FileBytes + kFileBlockBytes - 1) / kFileBlockBytes;
+        FileBlockCount = 0;
+
+        OnRecv(0.f, nullptr, nullptr, 0);
+
+        for (auto& block : BufferedBlocks) {
+            OnBlock(block[0], block.data() + 1, kFileBlockBytes);
+        }
+
+        BufferedBlocks.clear();
+    }
+}
+
+void FileReceiver::OnBlock(uint8_t truncated_id, const void* data, int bytes)
+{
+    if (TransferComplete) {
+        return; // Ignore more data
+    }
+
+    // If we haven't gotten any file data yet:
+    if (FileBytes == 0) {
+        spdlog::debug("Buffering a block");
+        std::vector<uint8_t> temp(1 + bytes);
+        temp[0] = truncated_id;
+        memcpy(temp.data() + 1, data, bytes);
+        BufferedBlocks.push_back(temp);
+        return;
+    }
+
+    NextBlockId = Counter32::ExpandFromTruncated(NextBlockId, truncated_id);
+
+    WirehairResult r = wirehair_decode(Decoder, NextBlockId.ToUnsigned(), data + 1, bytes - 1);
+    if (r == Wirehair_NeedMore) {
+        ++FileBlockCount;
+        const float progress = FileBlockCount / (float)TotalBlockCount;
+        OnRecv(progress, nullptr, nullptr, 0);
+        return;
+    }
+
+    // Point of no return for this file
+    TransferComplete = true;
+
+    if (r != Wirehair_Success) {
+        spdlog::error("wirehair_decode failed: {}", wirehair_result_string(r));
+        return;
+    }
+
+    spdlog::info("File transfer complete!  Recovering...");
+
+    uint64_t t0 = GetTimeUsec();
+
+    FileData.resize(FileBytes);
+    r = wirehair_recover(Decoder, FileData.data(), FileData.size());
+    if (r != Wirehair_Success) {
+        spdlog::error("wirehair_recover failed: {}", wirehair_result_string(r));
+        return;
+    }
+
+    uint64_t t1 = GetTimeUsec();
+
+    spdlog::debug("Recovery complete in {} msec.  Decompressing...", (t1 - t0) / 1000.f);
+
+    DecompressedData.resize(DecompressedBytes);
+    size_t decompress_result = ZSTD_decompress(
+        DecompressedData.data(), DecompressedBytes,
+        FileData.data(), FileData.size());
+    if (decompress_result != DecompressedBytes) {
+        spdlog::error("ZSTD_decompress failed: {}", ZSTD_getErrorName(decompress_result));
+        return;
+    }
+
+    uint64_t t2 = GetTimeUsec();
+
+    spdlog::debug("Decompression complete in {} msec", (t2 - t1) / 1000.f);
+
+    const int file_name_bytes = DecompressedData[0];
+    const int header_bytes = 1 + file_name_bytes + 1;
+    if (header_bytes > DecompressedBytes) {
+        spdlog::error("Malformed decompressed data");
+        return;
+    }
+
+    // Enforce null-terminated string
+    DecompressedData[1 + file_name_bytes] = '\0';
+
+    const char* file_name = (const char*)&DecompressedData[1];
+
+    const uint8_t* file_data = DecompressedData.data() + header_bytes;
+    const int file_bytes = DecompressedBytes - header_bytes;
+
+    OnRecv(1.f, file_name, file_data, file_bytes);
+}
+
+void FileReceiver::Loop()
+{
+    spdlog::debug("FileReceiver::Loop started");
+
+    uint64_t LastReceiveUsec = 0;
 
     while (!Terminated)
     {
-        // Periodically rescan for ambient noise power
-        if (!in_transfer)
+        if (!Uplink.Receive([&](const uint8_t* data, int bytes)
         {
-            uint64_t t1 = GetTimeMsec();
-            int64_t dt_msec = t1 - last_ambient_scan_usec;
-            if (dt_msec > 30 * 1000)
-            {
-                spdlog::info("RSSI ambient noise scan started...");
-                if (!Uplink.ScanAmbientRssi()) {
-                    spdlog::error("Uplink.ScanAmbientRssi failed");
-                    break;
-                }
+            /*
+                To decode the file we need to know its total length ahead of time.
+                Otherwise we just need a truncated 8-bit block identifier on each block.
 
-                std::ostringstream oss;
-                oss << "RSSI ambient noise scan completed:";
-                for (int i = 0; i < kCheckedChannelCount; ++i) {
-                    const int channel = kCheckedChannels[i];
-                    oss << " ch" << channel << "=" << Uplink.ChannelRssi[channel];
-                }
-                oss << " (dBm noise)";
-                spdlog::info("{}", oss.str());
+                Occasionally the sender will send the length and file hash and full
+                32-bit block identifier.
+                We can buffer up data for a while until this is received.
+            */
 
-                last_ambient_scan_usec = GetTimeMsec();
+            if (bytes == 4 + 4 + 4 + 4) {
+                OnFileInfo(ReadU32_LE(data), ReadU32_LE(data + 4), ReadU32_LE(data + 8), ReadU32_LE(data + 12));
+            } else if (bytes == kPacketMaxBytes) {
+                OnBlock(data[0], data + 1, bytes - 1);
             }
-        }
 
-        if (!Uplink.Receive([&](const uint8_t* data, int bytes) {
-            if (in_transfer) {
-                if (bytes < 2) {
-                    spdlog::warn("Truncated packet: bytes={}", bytes);
-                    return;
-                }
-
-                Counter8 truncated = data[0];
-                Counter32 block_id = Counter32::ExpandFromTruncated(last_block_id, truncated);
-                last_block_id = block_id;
-
-                WirehairResult r = wirehair_decode(Decoder, block_id.ToUnsigned(), data + 1, bytes - 1);
-                if (r != Wirehair_Success) {
-                    Terminated = true;
-                    spdlog::error("wirehair_decode failed: {}", wirehair_result_string(r));
-                    return;
-                }
-                if (r == Wirehair_NeedMore) {
-                    // More needed
-                    return;
-                }
-
-                spdlog::info("Enough file data has been received");
-
-                r = wirehair_recover(Decoder, FileData.data(), FileData.size());
-                if (r != Wirehair_Success) {
-                    spdlog::error("wirehair_recover failed: {}", wirehair_result_string(r));
-                    Terminated = true;
-                    return;
-                }
-
-                if (!WriteBufferToFile(Filename.c_str(), FileData.data(), FileData.size())) {
-                    spdlog::error("WriteBufferToFile failed: {}", Filename);
-                    Terminated = true;
-                    return;
-                }
-
-                spdlog::info("File transfer complete.");
-                Terminated = true;
-                return;
-            } else {
-                if (bytes < 4 + 4 + 4 + 2) {
-                    spdlog::warn("Ignoring truncated LoRa packet: bytes={}", bytes);
-                    return;
-                }
-                if (data[0] != 0 || data[1] != 0xfe || data[2] != 0xad || data[3] != 0x01) {
-                    spdlog::warn("Ignoring wrong protocol LoRa packet: bytes={}", bytes);
-                    return;
-                }
-
-                spdlog::info("Received message outside of transfer");
-            }
+            LastReceiveUsec = GetTimeUsec();
         })) {
             spdlog::error("Receive loop failed");
             break;
         }
 
+        const int64_t dt = GetTimeUsec() - LastReceiveUsec;
+        const int64_t timeout_usec = 20 * 1000 * 1000;
+        if (dt > timeout_usec) {
+            if (FileBytes != 0) {
+                spdlog::info("Timeout while receiving file from sender.  Resetting and waiting for next file...");
+                FileBytes = 0;
+                FileHash = 0;
+                NextBlockId = 0;
+                BufferedBlocks.clear();
+            }
+        }
+
         usleep(4000);
     }
 
-    spdlog::debug("FileServer::Loop stopped");
+    spdlog::debug("FileReceiver::Loop stopped");
 }
 
 
 //------------------------------------------------------------------------------
-// Client
+// FileSender
 
-bool FileClient::Initialize(const char* filepath)
+bool FileSender::Initialize(const char* filepath, const uint8_t* file_data, int file_bytes)
 {
-    MappedReadOnlySmallFile mmf;
-
-    if (!mmf.Read(filepath)) {
-        spdlog::error("Failed to open file: {}", filepath);
-        return false;
-    }
-
     const char* last_slash0 = strrchr(filepath, '/');
     const char* last_slash1 = strrchr(filepath, '\\');
     const char* last_slash = last_slash0;
@@ -180,9 +244,6 @@ bool FileClient::Initialize(const char* filepath)
     } else {
         Filename = filepath;
     }
-
-    const uint8_t* file_data = mmf.GetData();
-    const uint32_t file_bytes = mmf.GetDataBytes();
 
     const size_t file_bound = ZSTD_compressBound(file_bytes);
     CompressedFile.resize(file_bound);
@@ -218,11 +279,11 @@ bool FileClient::Initialize(const char* filepath)
     spdlog::info("Connecting to server...");
 
     Terminated = false;
-    Thread = std::make_shared<std::thread>(&FileClient::Loop, this);
+    Thread = std::make_shared<std::thread>(&FileSender::Loop, this);
     return true;
 }
 
-void FileClient::Shutdown()
+void FileSender::Shutdown()
 {
     Terminated = true;
     JoinThread(Thread);
@@ -233,9 +294,9 @@ void FileClient::Shutdown()
     Encoder = nullptr;
 }
 
-void FileClient::Loop()
+void FileSender::Loop()
 {
-    spdlog::debug("FileClient::Loop started");
+    spdlog::debug("FileSender::Loop started");
 
     ScopedFunction term_scope([&]() {
         // All function exit conditions flag terminated
@@ -306,10 +367,10 @@ void FileClient::Loop()
         usleep(4000);
     }
 
-    spdlog::debug("FileClient::Loop ended");
+    spdlog::debug("FileSender::Loop ended");
 }
 
-bool FileClient::MakeOffer(int& selected_channel)
+bool FileSender::MakeOffer(int& selected_channel)
 {
     const uint64_t t0 = GetTimeUsec();
     bool got_ack = false;
@@ -329,7 +390,7 @@ bool FileClient::MakeOffer(int& selected_channel)
         Uplink.Send(offer, 4 + 4 + 4 + 1 + Filename.length());
 
         // We need to wait for the send to complete before going into receive mode or it will not send
-        usleep(1000 * 1000);
+        usleep(500 * 1000);
 
         // Wait for response:
         const uint64_t wait0 = GetTimeUsec();
@@ -379,7 +440,7 @@ bool FileClient::MakeOffer(int& selected_channel)
     return false;
 }
 
-bool FileClient::BackchannelCheck()
+bool FileSender::BackchannelCheck()
 {
     uint64_t t0 = GetTimeUsec();
     bool got_ack = false;

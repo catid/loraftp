@@ -90,26 +90,26 @@ install(TARGETS loraftp DESTINATION lib)
 install(FILES include/loraftp.hpp DESTINATION include)
 
 
-# App: loraftp_client
+# App: loraftp_send
 
-add_executable(loraftp_client
-    app/loraftp_client.cpp
+add_executable(loraftp_send
+    app/loraftp_send.cpp
 )
-target_link_libraries(loraftp_client
+target_link_libraries(loraftp_send
     PUBLIC
         loraftp
 )
 
-set_target_properties(loraftp_client PROPERTIES INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
-install(TARGETS loraftp_client DESTINATION bin)
+set_target_properties(loraftp_send PROPERTIES INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+install(TARGETS loraftp_send DESTINATION bin)
 
 
-# App: loraftp_server
+# App: loraftp_get
 
-add_executable(loraftp_server
-    app/loraftp_server.cpp
+add_executable(loraftp_get
+    app/loraftp_get.cpp
 )
-target_link_libraries(loraftp_server
+target_link_libraries(loraftp_get
     PUBLIC
         loraftp
 )
