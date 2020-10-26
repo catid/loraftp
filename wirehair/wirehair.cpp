@@ -33,7 +33,6 @@
 
 static bool m_init = false;
 
-
 extern "C" {
 
 

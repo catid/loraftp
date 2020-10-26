@@ -299,7 +299,7 @@ bool FileSender::Initialize(const char* filepath, const uint8_t* file_data, int 
     FileHash = FastCrc32(temp.data(), temp.size());
 
     const size_t file_bound = ZSTD_compressBound(temp.size());
-    CompressedFile.resize(file_bound);
+    CompressedFile.resize(file_bound + kBlockBytes);
 
     CompressedFileBytes = ZSTD_compress(
         CompressedFile.data(), file_bound,
@@ -316,9 +316,13 @@ bool FileSender::Initialize(const char* filepath, const uint8_t* file_data, int 
         return false;
     }
 
+    // FIXME: We add one extra kBlockBytes to work-around an issue with Wirehair, where it does not
+    // accept input smaller than 2 blocks long.
+    CompressedFileBytes += kBlockBytes;
+
     Encoder = wirehair_encoder_create(Encoder, CompressedFile.data(), CompressedFileBytes, kBlockBytes);
     if (!Encoder) {
-        spdlog::error("wirehair_encoder_create failed: File size may be too large!");
+        spdlog::error("wirehair_encoder_create failed: File size may be too large.");
         return false;
     }
 
