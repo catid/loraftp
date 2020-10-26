@@ -130,7 +130,7 @@ void FileReceiver::OnBlock(uint8_t truncated_id, const void* data, int bytes)
 
     NextBlockId = Counter32::ExpandFromTruncated(NextBlockId, Counter8(truncated_id));
 
-    WirehairResult r = wirehair_decode(Decoder, NextBlockId.ToUnsigned(), (uint8_t*)data + 1, bytes - 1);
+    WirehairResult r = wirehair_decode(Decoder, NextBlockId.ToUnsigned(), data, bytes);
     if (r == Wirehair_NeedMore)
     {
         ++FileBlockCount;
@@ -231,6 +231,8 @@ void FileReceiver::Loop()
                 OnFileInfo(ReadU32_LE(data), ReadU32_LE(data + 4), ReadU32_LE(data + 8), ReadU32_LE(data + 12));
             } else if (bytes == kPacketMaxBytes) {
                 OnBlock(data[0], data + 1, bytes - 1);
+            } else {
+                spdlog::warn("Ignoring bogon: {} bytes", bytes);
             }
 
             LastReceiveUsec = GetTimeUsec();
