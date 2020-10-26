@@ -376,7 +376,7 @@ void FileSender::Loop()
             usleep(send_interval_usec);
         }
 
-        uint8_t block[1 + kBlockBytes] = {};
+        uint8_t block[kPacketMaxBytes] = {};
         uint32_t block_bytes = 0;
 
         WirehairResult wr = wirehair_encode(Encoder, block_id, block + 1, (uint32_t)kBlockBytes, &block_bytes);
