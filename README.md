@@ -44,16 +44,16 @@ Clone the repo on both devices and build it:
 One of the devices receives the file:
 
 ```
-    ./loraftp_get
+    sudo ./loraftp_get
 ```
 
 The other device runs the file sender:
 
 ```
-    ./loraftp_send document.txt
+    sudo ./loraftp_send document.txt
 ```
 
-This will place the file in the same folder as loraftp_get.
+This will place the file in the same folder as `loraftp_get`.
 
 
 ## Credits
