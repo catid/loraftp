@@ -114,8 +114,8 @@ target_link_libraries(loraftp_get
         loraftp
 )
 
-set_target_properties(loraftp_server PROPERTIES INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
-install(TARGETS loraftp_server DESTINATION bin)
+set_target_properties(loraftp_get PROPERTIES INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+install(TARGETS loraftp_get DESTINATION bin)
 
 
 # App: echo_test

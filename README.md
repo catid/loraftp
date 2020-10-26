@@ -54,7 +54,7 @@ The other device runs the file sender:
     ./loraftp_send document.txt
 ```
 
-This will place the file in the same folder as the server.
+This will place the file in the same folder as loraftp_get.
 
 
 ## Credits
