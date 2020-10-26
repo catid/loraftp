@@ -100,16 +100,13 @@ protected:
     std::shared_ptr<std::thread> Thread;
 
     std::string Filename;
+    uint32_t FileHash = 0;
 
     std::vector<uint8_t> CompressedFile;
     size_t CompressedFileBytes = 0;
-
-    int PercentageComplete = 0;
+    uint32_t DecompressedBytes = 0;
 
     void Loop();
-
-    bool MakeOffer(int& selected_channel);
-    bool BackchannelCheck();
 };
 
 

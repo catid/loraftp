@@ -24,7 +24,11 @@ static const uint16_t kSenderAddr = 1;
 static const int kZstdCompressLevel = 1;
 
 // We need size + crc + offset header on each frame, eating into the 240 max.
-static const int kBlockBytes = 234;
+// We add one byte for block id to the block data.
+static const int kBlockBytes = kPacketMaxBytes - 1;
+
+// Size of periodic info sync message
+static const int kInfoBytes = 4 + 4 + 4 + 4;
 
 
 //------------------------------------------------------------------------------
@@ -35,6 +39,12 @@ bool FileReceiver::Initialize(OnReceiveProgress on_recv)
     Shutdown();
 
     OnRecv = on_recv;
+
+    WirehairResult wr = wirehair_init();
+    if (wr != Wirehair_Success) {
+        spdlog::error("wirehair_init failed: {}", wirehair_result_string(wr));
+        return false;
+    }
 
     if (!Uplink.Initialize(kRendezvousChannel, kMonitorAddress)) {
         spdlog::error("Uplink.Initialize failed");
@@ -79,6 +89,7 @@ void FileReceiver::OnFileInfo(uint32_t file_bytes, uint32_t hash, uint32_t next_
         TransferComplete = false;
 
         spdlog::info("Detected new file transfer starting [{} bytes]", file_bytes);
+
         if (InitDecoder(file_bytes)) {
             FileBytes = file_bytes;
             FileHash = hash;
@@ -105,19 +116,23 @@ void FileReceiver::OnBlock(uint8_t truncated_id, const void* data, int bytes)
     }
 
     // If we haven't gotten any file data yet:
-    if (FileBytes == 0) {
+    if (FileBytes == 0)
+    {
         spdlog::debug("Buffering a block");
+
         std::vector<uint8_t> temp(1 + bytes);
         temp[0] = truncated_id;
         memcpy(temp.data() + 1, data, bytes);
+
         BufferedBlocks.push_back(temp);
         return;
     }
 
-    NextBlockId = Counter32::ExpandFromTruncated(NextBlockId, truncated_id);
+    NextBlockId = Counter32::ExpandFromTruncated(NextBlockId, Counter8(truncated_id));
 
-    WirehairResult r = wirehair_decode(Decoder, NextBlockId.ToUnsigned(), data + 1, bytes - 1);
-    if (r == Wirehair_NeedMore) {
+    WirehairResult r = wirehair_decode(Decoder, NextBlockId.ToUnsigned(), (uint8_t*)data + 1, bytes - 1);
+    if (r == Wirehair_NeedMore)
+    {
         ++FileBlockCount;
         const float progress = FileBlockCount / (float)TotalBlockCount;
         OnRecv(progress, nullptr, nullptr, 0);
@@ -129,6 +144,7 @@ void FileReceiver::OnBlock(uint8_t truncated_id, const void* data, int bytes)
 
     if (r != Wirehair_Success) {
         spdlog::error("wirehair_decode failed: {}", wirehair_result_string(r));
+        FileBytes = 0;
         return;
     }
 
@@ -140,6 +156,7 @@ void FileReceiver::OnBlock(uint8_t truncated_id, const void* data, int bytes)
     r = wirehair_recover(Decoder, FileData.data(), FileData.size());
     if (r != Wirehair_Success) {
         spdlog::error("wirehair_recover failed: {}", wirehair_result_string(r));
+        FileBytes = 0;
         return;
     }
 
@@ -153,17 +170,30 @@ void FileReceiver::OnBlock(uint8_t truncated_id, const void* data, int bytes)
         FileData.data(), FileData.size());
     if (decompress_result != DecompressedBytes) {
         spdlog::error("ZSTD_decompress failed: {}", ZSTD_getErrorName(decompress_result));
+        FileBytes = 0;
         return;
     }
 
     uint64_t t2 = GetTimeUsec();
 
-    spdlog::debug("Decompression complete in {} msec", (t2 - t1) / 1000.f);
+    spdlog::debug("Decompression complete in {} msec.  Validating...", (t2 - t1) / 1000.f);
+
+    const uint32_t hash = FastCrc32(DecompressedData.data(), DecompressedData.size());
+    if (hash != FileHash) {
+        spdlog::error("File hash did not match");
+        FileBytes = 0;
+        return;
+    }
+
+    uint64_t t3 = GetTimeUsec();
+
+    spdlog::debug("Validation complete in {} msec", (t3 - t2) / 1000.f);
 
     const int file_name_bytes = DecompressedData[0];
     const int header_bytes = 1 + file_name_bytes + 1;
-    if (header_bytes > DecompressedBytes) {
+    if (header_bytes > (int)DecompressedBytes) {
         spdlog::error("Malformed decompressed data");
+        FileBytes = 0;
         return;
     }
 
@@ -197,7 +227,7 @@ void FileReceiver::Loop()
                 We can buffer up data for a while until this is received.
             */
 
-            if (bytes == 4 + 4 + 4 + 4) {
+            if (bytes == kInfoBytes) {
                 OnFileInfo(ReadU32_LE(data), ReadU32_LE(data + 4), ReadU32_LE(data + 8), ReadU32_LE(data + 12));
             } else if (bytes == kPacketMaxBytes) {
                 OnBlock(data[0], data + 1, bytes - 1);
@@ -211,8 +241,10 @@ void FileReceiver::Loop()
 
         const int64_t dt = GetTimeUsec() - LastReceiveUsec;
         const int64_t timeout_usec = 20 * 1000 * 1000;
-        if (dt > timeout_usec) {
-            if (FileBytes != 0) {
+        if (dt > timeout_usec)
+        {
+            if (FileBytes != 0)
+            {
                 spdlog::info("Timeout while receiving file from sender.  Resetting and waiting for next file...");
                 FileBytes = 0;
                 FileHash = 0;
@@ -245,12 +277,31 @@ bool FileSender::Initialize(const char* filepath, const uint8_t* file_data, int 
         Filename = filepath;
     }
 
-    const size_t file_bound = ZSTD_compressBound(file_bytes);
+    if (Filename.empty()) {
+        spdlog::error("File name is empty");
+        return false;
+    }
+    if (Filename.size() > 255) {
+        spdlog::error("File name too long: ", Filename);
+        return false;
+    }
+
+    DecompressedBytes = 1 + Filename.size() + 1 + file_bytes;
+    std::vector<uint8_t> temp(DecompressedBytes);
+
+    temp[0] = (uint8_t)Filename.size();
+    memcpy(temp.data() + 1, Filename.data(), Filename.size());
+    temp[1 + Filename.size()] = '\0';
+    memcpy(temp.data() + 1 + Filename.size() + 1, file_data, file_bytes);
+
+    FileHash = FastCrc32(temp.data(), temp.size());
+
+    const size_t file_bound = ZSTD_compressBound(temp.size());
     CompressedFile.resize(file_bound);
 
     CompressedFileBytes = ZSTD_compress(
         CompressedFile.data(), file_bound,
-        file_data, file_bytes, kZstdCompressLevel);
+        temp.data(), temp.size(), kZstdCompressLevel);
 
     if (ZSTD_isError(CompressedFileBytes)) {
         spdlog::error("Zstd failed: {} file_bytes={}", ZSTD_getErrorName(CompressedFileBytes), file_bytes);
@@ -271,12 +322,12 @@ bool FileSender::Initialize(const char* filepath, const uint8_t* file_data, int 
 
     spdlog::info("Compressed {} to {} bytes.  Starting LoRa uplink...", filepath, CompressedFileBytes);
 
-    if (!Uplink.Initialize(kRendezvousChannel, kServerAddr)) {
+    if (!Uplink.Initialize(kRendezvousChannel, kSenderAddr)) {
         spdlog::error("Uplink.Initialize failed");
         return false;
     }
 
-    spdlog::info("Connecting to server...");
+    spdlog::info("Transmitting...");
 
     Terminated = false;
     Thread = std::make_shared<std::thread>(&FileSender::Loop, this);
@@ -298,187 +349,45 @@ void FileSender::Loop()
 {
     spdlog::debug("FileSender::Loop started");
 
+    const int send_interval_usec = 100 * 1000;
+
     ScopedFunction term_scope([&]() {
         // All function exit conditions flag terminated
         Terminated = true;
     });
 
-    int selected_channel = 0;
-    if (!MakeOffer(selected_channel)) {
-        spdlog::error("Server unreachable");
-        return;
-    }
-
-    uint64_t last_backchannel_usec = GetTimeUsec();
-
-    if (!Uplink.SetChannel(selected_channel)) {
-        spdlog::error("Failed to set channel");
-        return;
-    }
-
-    uint8_t block[1 + kBlockBytes];
     unsigned block_id = 0;
-    uint32_t block_bytes = 0;
-
-    WirehairResult wr = wirehair_encode(Encoder, block_id, block + 1, (uint32_t)kBlockBytes, &block_bytes);
-    if (wr != Wirehair_Success) {
-        spdlog::error("wirehair_encode failed: {}", wirehair_result_string(wr));
-        return;
-    }
-
-    uint64_t t0 = 0;
 
     while (!Terminated)
     {
-        uint64_t t1 = GetTimeUsec();
-        int64_t dt = t1 - last_backchannel_usec;
-        if (dt > kBackchannelIntervalUsec) {
-            if (!BackchannelCheck()) {
-                spdlog::error("BackchannelCheck failed");
-                break;
-            }
+        if (block_id % 32 == 0) {
+            uint8_t info[kInfoBytes];
+
+            WriteU32_LE(info, (uint32_t)CompressedFileBytes);
+            WriteU32_LE(info + 4, FileHash);
+            WriteU32_LE(info + 8, block_id);
+            WriteU32_LE(info + 12, DecompressedBytes);
+
+            Uplink.Send(info, kInfoBytes);
+
+            usleep(send_interval_usec);
         }
 
-        if (PercentageComplete >= 100) {
-            spdlog::info("Transfer completed successfully");
-            break;
+        uint8_t block[1 + kBlockBytes];
+        uint32_t block_bytes = 0;
+
+        WirehairResult wr = wirehair_encode(Encoder, block_id, block + 1, (uint32_t)kBlockBytes, &block_bytes);
+        if (wr != Wirehair_Success) {
+            spdlog::error("wirehair_encode failed: {}", wirehair_result_string(wr));
+            return;
         }
 
-        // Send another block
-        dt = t1 - t0;
-        const int64_t send_interval_usec = 100 * 1000;
-        if (dt > send_interval_usec) {
-            block[0] = (uint8_t)block_id;
+        ++block_id;
 
-            if (!Uplink.Send(block, 1 + block_bytes)) {
-                spdlog::error("Uplink.Send failed");
-                break;
-            }
-
-            block_id++;
-
-            WirehairResult wr = wirehair_encode(Encoder, block_id, block, (uint32_t)kBlockBytes, &block_bytes);
-            if (wr != Wirehair_Success) {
-                spdlog::error("wirehair_encode failed: {}", wirehair_result_string(wr));
-                break;
-            }
-        }
-
-        usleep(4000);
+        usleep(send_interval_usec);
     }
 
     spdlog::debug("FileSender::Loop ended");
-}
-
-bool FileSender::MakeOffer(int& selected_channel)
-{
-    const uint64_t t0 = GetTimeUsec();
-    bool got_ack = false;
-
-    while (!Terminated)
-    {
-        uint8_t offer[235] = {
-            0x00, 0xfe, 0xad, 0x01,
-        };
-        memcpy(offer + 4, Uplink.ChannelRssiRaw, 4);
-        WriteU32_LE(offer + 8, (uint32_t)CompressedFileBytes);
-        assert(CompressedFileBytes <= 0xffffffff);
-        assert(Filename.length() < 235 - 4 - 4 - 4 - 1);
-        offer[12] = (uint8_t)Filename.length();
-        memcpy(offer + 13, Filename.c_str(), Filename.length());
-
-        Uplink.Send(offer, 4 + 4 + 4 + 1 + Filename.length());
-
-        // We need to wait for the send to complete before going into receive mode or it will not send
-        usleep(500 * 1000);
-
-        // Wait for response:
-        const uint64_t wait0 = GetTimeUsec();
-        while (!Terminated)
-        {
-            usleep(10 * 1000); // 10 msec
-
-            // Process incoming data from server
-            if (!Uplink.Receive([&](const uint8_t* data, int bytes) {
-                if (bytes != 2 || data[0] != 3) {
-                    spdlog::error("Invalid data received from server: bytes={} type={}", bytes, (int)data[0]);
-                    Terminated = true;
-                } else {
-                    got_ack = true;
-                }
-            })) {
-                spdlog::error("Receive loop failed");
-                return false;
-            }
-
-            if (got_ack) {
-                spdlog::info("Server acknowledged transmission request");
-                return true;
-            }
-
-            // Wait a quarter second to hear a response back
-            const uint64_t wait1 = GetTimeUsec();
-            const int64_t dt = wait1 - wait0;
-            const int64_t response_timeout_usec = 250 * 1000;
-            if (dt >= response_timeout_usec) {
-                // Send again or give up
-                break;
-            }
-        }
-
-        // Timeout?
-        const uint64_t t1 = GetTimeUsec();
-        const int64_t dt = t1 - t0;
-        const int64_t backchannel_timeout_usec = 15 * 1000 * 1000;
-        if (dt > backchannel_timeout_usec) {
-            spdlog::error("Peer disconnected (timeout)");
-            return false;
-        }
-    }
-
-    spdlog::warn("Aborted offer");
-    return false;
-}
-
-bool FileSender::BackchannelCheck()
-{
-    uint64_t t0 = GetTimeUsec();
-    bool got_ack = false;
-
-    while (!Terminated)
-    {
-        // Process incoming data from server
-        if (!Uplink.Receive([&](const uint8_t* data, int bytes) {
-            if (bytes != 2 || data[0] != 3) {
-                spdlog::error("Invalid data received from server: bytes={} type={}", bytes, (int)data[0]);
-                Terminated = true;
-            } else {
-                PercentageComplete = data[1];
-                got_ack = true;
-            }
-        })) {
-            spdlog::error("Receive loop failed");
-            return false;
-        }
-
-        if (got_ack) {
-            spdlog::error("Server received: {}%", PercentageComplete);
-            return true;
-        }
-
-        // Timeout?
-        uint64_t t1 = GetTimeUsec();
-        int64_t dt = t1 - t0;
-        const int64_t backchannel_timeout_usec = 15 * 1000 * 1000;
-        if (dt > backchannel_timeout_usec) {
-            spdlog::error("Peer disconnected (timeout)");
-            return false;
-        }
-
-        usleep(4000);
-    }
-
-    return true;
 }
 
 
