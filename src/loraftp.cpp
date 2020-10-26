@@ -385,6 +385,7 @@ void FileSender::Loop()
             return;
         }
 
+        block[0] = (uint8_t)block_id;
         if (!Uplink.Send(block, kPacketMaxBytes)) {
             spdlog::error("Uplink.Send failed");
             break;
