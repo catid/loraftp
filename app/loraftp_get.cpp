@@ -51,6 +51,7 @@ int main(int argc, char* argv[])
             } else {
                 spdlog::info("Completed file transfer: {} [{} bytes]", file_name, file_bytes);
             }
+            Terminated = true;
         } else {
             spdlog::info("Progress: {}%", progress * 100.f);
         }
