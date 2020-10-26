@@ -25,7 +25,7 @@ https://www.raspberrypi.org/
 
 Set up the Pis and connect the hats.
 
-Configure the DIP switches as shown here:
+Configure the jumpers as shown here:
 
 ![alt text](https://github.com/catid/loraftp/raw/master/docs/waveshare_dips.jpg "DIP switch settings for LoRa HAT")
 
