@@ -33,7 +33,7 @@ static const uint8_t kKeyLo = 0x00;
 //------------------------------------------------------------------------------
 // Waveshare HAT API
 
-bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
+bool Waveshare::Initialize(int channel, uint16_t transmit_addr, bool lbt)
 {
     Shutdown();
 
@@ -42,6 +42,7 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
     InConfigMode = false;
     Baudrate = 9600;
     RecvOffsetBytes = 0;
+    CurrentAddress = TransmitAddress = transmit_addr;
 
     spdlog::debug("Entering config mode...");
 
@@ -80,7 +81,7 @@ bool Waveshare::Initialize(int channel, uint16_t addr, bool lbt)
         /*
             Node address or 0xffff for monitor mode
         */
-        (uint8_t)(addr >> 8), (uint8_t)addr,
+        (uint8_t)(transmit_addr >> 8), (uint8_t)transmit_addr,
 
         /*
             Network id for all nodes
@@ -214,6 +215,37 @@ bool Waveshare::EnterTransmitMode()
 
     spdlog::debug("Now in transmit mode");
     InConfigMode = false;
+    return true;
+}
+
+bool Waveshare::SetAddress(uint16_t addr)
+{
+    if (CurrentAddress == addr) {
+        return true;
+    }
+
+    if (!EnterConfigMode()) {
+        spdlog::error("SetAddress: EnterConfigMode failed");
+        return false;
+    }
+    
+    spdlog::debug("Configuring address {}...", addr);
+
+    uint8_t config[2] = {
+        (uint8_t)(addr >> 8), (uint8_t)addr
+    };
+
+    if (!WriteConfig(0, config, 2)) {
+        spdlog::error("SetAddress: WriteConfig failed");
+        return false;
+    }
+
+    if (!EnterTransmitMode()) {
+        spdlog::error("SetAddress: EnterTransmitMode failed");
+        return false;
+    }
+
+    CurrentAddress = addr;
     return true;
 }
 
@@ -401,6 +433,11 @@ bool Waveshare::Send(const uint8_t* data, int bytes)
         return false;
     }
 
+    if (!SetAddress(TransmitAddress)) {
+        spdlog::error("Send: SetAddress failed");
+        return false;
+    }
+
     uint8_t frame[240];
     frame[0] = static_cast<uint8_t>( bytes );
     WriteU32_LE(frame + 1, FastCrc32(data, bytes));
@@ -442,6 +479,11 @@ bool Waveshare::FillRecvBuffer()
 
 bool Waveshare::Receive(std::function<void(const uint8_t* data, int bytes)> callback)
 {
+    if (!SetAddress(kMonitorAddress)) {
+        spdlog::error("Send: SetAddress failed");
+        return false;
+    }
+
     if (!FillRecvBuffer()) {
         return false;
     }

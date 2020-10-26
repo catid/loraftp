@@ -38,7 +38,7 @@ static const int64_t kBackchannelIntervalUsec = 5 * 1000 * 1000;
 
 bool FileServer::Initialize()
 {
-    if (!Uplink.Initialize(kRendezvousChannel, kMonitorAddr)) {
+    if (!Uplink.Initialize(kRendezvousChannel, kServerAddr)) {
         spdlog::error("Uplink.Initialize failed");
         return false;
     }
@@ -311,7 +311,7 @@ void FileClient::Loop()
 
 bool FileClient::MakeOffer(int& selected_channel)
 {
-    uint64_t t0 = GetTimeUsec();
+    const uint64_t t0 = GetTimeUsec();
     bool got_ack = false;
 
     while (!Terminated)
@@ -328,34 +328,51 @@ bool FileClient::MakeOffer(int& selected_channel)
 
         Uplink.Send(offer, 4 + 4 + 4 + 1 + Filename.length());
 
-        // Process incoming data from server
-        if (!Uplink.Receive([&](const uint8_t* data, int bytes) {
-            if (bytes != 2 || data[0] != 3) {
-                spdlog::error("Invalid data received from server: bytes={} type={}", bytes, (int)data[0]);
-                Terminated = true;
-            } else {
-                got_ack = true;
-            }
-        })) {
-            spdlog::error("Receive loop failed");
-            return false;
-        }
+        // We need to wait for the send to complete before going into receive mode or it will not send
+        usleep(1000 * 1000);
 
-        if (got_ack) {
-            spdlog::info("Server acknowledged transmission request");
-            return true;
+        // Wait for response:
+        const uint64_t wait0 = GetTimeUsec();
+        while (!Terminated)
+        {
+            usleep(10 * 1000); // 10 msec
+
+            // Process incoming data from server
+            if (!Uplink.Receive([&](const uint8_t* data, int bytes) {
+                if (bytes != 2 || data[0] != 3) {
+                    spdlog::error("Invalid data received from server: bytes={} type={}", bytes, (int)data[0]);
+                    Terminated = true;
+                } else {
+                    got_ack = true;
+                }
+            })) {
+                spdlog::error("Receive loop failed");
+                return false;
+            }
+
+            if (got_ack) {
+                spdlog::info("Server acknowledged transmission request");
+                return true;
+            }
+
+            // Wait a quarter second to hear a response back
+            const uint64_t wait1 = GetTimeUsec();
+            const int64_t dt = wait1 - wait0;
+            const int64_t response_timeout_usec = 250 * 1000;
+            if (dt >= response_timeout_usec) {
+                // Send again or give up
+                break;
+            }
         }
 
         // Timeout?
-        uint64_t t1 = GetTimeUsec();
-        int64_t dt = t1 - t0;
+        const uint64_t t1 = GetTimeUsec();
+        const int64_t dt = t1 - t0;
         const int64_t backchannel_timeout_usec = 15 * 1000 * 1000;
         if (dt > backchannel_timeout_usec) {
             spdlog::error("Peer disconnected (timeout)");
             return false;
         }
-
-        usleep(100 * 1000);
     }
 
     spdlog::warn("Aborted offer");

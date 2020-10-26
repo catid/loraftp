@@ -23,7 +23,10 @@ static const int kCheckedChannels[kCheckedChannelCount] = {
     16, 32, 48, 64
 };
 
-static const uint16_t kMonitorAddr = UINT16_C(0xffff);
+// Monitor address can receive but not transmit.
+// Other addresses can transmit but not receive.
+static const uint16_t kMonitorAddress = UINT16_C(0xffff);
+
 
 //------------------------------------------------------------------------------
 // Waveshare HAT API
@@ -38,13 +41,11 @@ public:
 
     /*
         Channel = Initial channel to configure 0...kChannelCount-1
-        Address is the node address or 0xffff for monitor mode.
-        Note: The only way to receive data is in monitor mode!
         LBT = Listen Before Transmit (adds ~2 seconds of latency).
     */
     bool Initialize(
-        int channel, // initial channel
-        uint16_t addr,
+        int channel, // Initial channel
+        uint16_t transmit_addr, // Address to use when transmitting
         bool lbt = false);
     void Shutdown();
 
@@ -80,6 +81,8 @@ protected:
     RawSerialPort Serial;
     bool InConfigMode = false;
     int Baudrate = 9600;
+    uint16_t TransmitAddress = kMonitorAddress;
+    uint16_t CurrentAddress = kMonitorAddress;
 
     // Receive() data goes here
     static const int kRecvBufferBytes = 240;
@@ -89,6 +92,8 @@ protected:
 
     bool EnterConfigMode();
     bool EnterTransmitMode();
+
+    bool SetAddress(uint16_t addr);
 
     bool WriteConfig(int offset, const uint8_t* data, int bytes);
 
