@@ -370,12 +370,15 @@ void FileSender::Loop()
             WriteU32_LE(info + 8, block_id);
             WriteU32_LE(info + 12, DecompressedBytes);
 
-            Uplink.Send(info, kInfoBytes);
+            if (!Uplink.Send(info, kInfoBytes)) {
+                spdlog::error("Uplink.Send failed");
+                break;
+            }
 
             usleep(send_interval_usec);
         }
 
-        uint8_t block[1 + kBlockBytes];
+        uint8_t block[kPacketMaxBytes] = {};
         uint32_t block_bytes = 0;
 
         WirehairResult wr = wirehair_encode(Encoder, block_id, block + 1, (uint32_t)kBlockBytes, &block_bytes);
@@ -384,9 +387,15 @@ void FileSender::Loop()
             return;
         }
 
-        ++block_id;
+        block[0] = (uint8_t)block_id;
+        if (!Uplink.Send(block, kPacketMaxBytes)) {
+            spdlog::error("Uplink.Send failed");
+            break;
+        }
 
         usleep(send_interval_usec);
+
+        ++block_id;
     }
 
     spdlog::debug("FileSender::Loop ended");
