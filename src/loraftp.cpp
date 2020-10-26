@@ -164,6 +164,10 @@ void FileReceiver::OnBlock(uint8_t truncated_id, const void* data, int bytes)
 
     spdlog::debug("Recovery complete in {} msec.  Decompressing...", (t1 - t0) / 1000.f);
 
+    // FIXME: We add one extra kBlockBytes to work-around an issue with Wirehair, where it does not
+    // accept input smaller than 2 blocks long.
+    FileData.resize(FileData.size() - kBlockBytes);
+
     DecompressedData.resize(DecompressedBytes);
     size_t decompress_result = ZSTD_decompress(
         DecompressedData.data(), DecompressedBytes,
