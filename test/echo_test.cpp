@@ -78,7 +78,7 @@ int main(int argc, char* argv[])
 
         const int packet_bytes = kPacketMaxBytes;
 
-        if (id != -1)
+        if (id >= 2)
         {
             uint64_t t1 = GetTimeMsec();
             int64_t dt = t1 - t0;
