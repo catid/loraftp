@@ -1,5 +1,3 @@
-# This is a work in progress (doesn't work yet)
-
 # LoRa FTP : Broadcast File Transfer
 
 File transfer between Raspberry Pis using the LoRa Pi HAT from Waveshare.
