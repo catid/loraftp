@@ -38,7 +38,7 @@ Clone the repo on both devices and build it:
     mkdir build
     cd build
     cmake ..
-    make -j
+    make -j4
 ```
 
 One of the devices receives the file:
