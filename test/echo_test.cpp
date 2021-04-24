@@ -7,7 +7,7 @@
 
     On Pi 1 that receives data:
 
-        sudo ./echo_test -1
+        sudo ./echo_test 2
 
     On Pi 2 that sends data:
 
