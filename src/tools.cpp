@@ -194,7 +194,7 @@ uint32_t FastCrc32(const void* vdata, int bytes)
         crc = __crc32cb(crc, *data);
     }
 
-    return crc;
+    return ~crc;
 }
 
 #else // Fallback when processor cannot do it for us:
@@ -218,8 +218,10 @@ static const uint32_t CRC32_LUT[256] = {
     0xbdbdf21c, 0xcabac28a, 0x53b39330, 0x24b4a3a6, 0xbad03605, 0xcdd70693, 0x54de5729, 0x23d967bf, 0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94, 0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d, 
 };
 
-uint32_t FastCrc32(const uint8_t* data, int bytes)
+uint32_t FastCrc32(const void* vdata, int bytes)
 {
+    const uint8_t* data = reinterpret_cast<const uint8_t*>( vdata );
+
     uint32_t crc = UINT32_C(0xffffffff);
 
     for (int i = 0; i < bytes; ++i) {
